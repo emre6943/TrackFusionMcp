@@ -5,9 +5,14 @@
  * Authenticates via API key (Bearer token).
  */
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+const RETRY_DELAY_MS = 2_000;
+const MAX_RETRIES = 1;
+
 export interface TrackfusionClientConfig {
   apiKey: string;
   baseUrl: string;
+  timeoutMs?: number;
 }
 
 export interface Project {
@@ -62,29 +67,60 @@ export interface UpdateTaskInput {
 export class TrackfusionClient {
   private apiKey: string;
   private baseUrl: string;
+  private timeoutMs: number;
 
   constructor(config: TrackfusionClientConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
+    const fetchOptions: RequestInit = {
       ...options,
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
-    });
+      signal: AbortSignal.timeout(this.timeoutMs),
+    };
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `HTTP ${res.status}: ${res.statusText}`);
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(url, fetchOptions);
+
+        // Retry on 503 (cold start) — but not on other errors
+        if (res.status === 503 && attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+          continue;
+        }
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        return res.json() as Promise<T>;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+
+        // Don't retry on non-503 errors (auth failures, 404s, etc.)
+        if (lastError.name !== 'AbortError' && attempt < MAX_RETRIES) {
+          // Only retry if it was a network-level error
+          if (lastError.message.includes('fetch failed') || lastError.message.includes('ECONNREFUSED')) {
+            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+            continue;
+          }
+        }
+        throw lastError;
+      }
     }
 
-    return res.json() as Promise<T>;
+    throw lastError ?? new Error('Request failed');
   }
 
   async listProjects(includeArchived = false): Promise<Project[]> {

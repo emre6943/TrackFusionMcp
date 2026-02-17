@@ -10,7 +10,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { TrackfusionClient } from './client.js';
+import { TrackfusionClient, UpdateTaskInput } from './client.js';
 
 const API_KEY = process.env.TRACKFUSION_API_KEY;
 const BASE_URL = process.env.TRACKFUSION_API_URL || 'https://europe-west1-oz-track.cloudfunctions.net/api';
@@ -149,7 +149,7 @@ server.tool(
   },
   async ({ taskId, title, description, status, priority, dueDate }) => {
     try {
-      const updates: Record<string, unknown> = {};
+      const updates: UpdateTaskInput = {};
       if (title !== undefined) updates.title = title;
       if (description !== undefined) updates.description = description;
       if (status !== undefined) updates.status = status;
