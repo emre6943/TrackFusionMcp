@@ -11,17 +11,20 @@ npm run build
 
 ## Configuration
 
-Set your API key as an environment variable:
+Copy the example env file and fill in your API key:
 
 ```bash
-export TRACKFUSION_API_KEY=tf_your_key_here
+cp .env.example .env
 ```
 
-Optional: override the API base URL (defaults to production):
+Edit `.env` with your values:
 
-```bash
-export TRACKFUSION_API_URL=https://europe-west1-oz-track.cloudfunctions.net/api
 ```
+TRACKFUSION_API_KEY=tf_your_key_here
+TRACKFUSION_API_URL=https://europe-west1-oz-track.cloudfunctions.net/api  # optional, defaults to production
+```
+
+The server loads `.env` automatically via `dotenv`.
 
 ## Usage
 
