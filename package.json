@@ -1,0 +1,27 @@
+{
+  "name": "trackfusion-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Trackfusion — exposes projects & tasks via API key auth",
+  "main": "dist/index.js",
+  "bin": {
+    "trackfusion-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest --forceExit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "module",
+  "private": true
+}
