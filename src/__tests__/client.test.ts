@@ -433,7 +433,7 @@ describe('TrackfusionClient', () => {
   describe('listSpendings', () => {
     it('should fetch spendings with filters', async () => {
       mockFetch.mockResolvedValue(jsonResponse({
-        spendings: [{ id: 's1', name: 'Groceries', amount: 50 }],
+        spendings: [{ id: 's1', description: 'Groceries', amount: 50 }],
       }));
 
       const result = await client.listSpendings({ from: '2026-02-01', categoryId: 'cat1' });
@@ -449,18 +449,18 @@ describe('TrackfusionClient', () => {
   describe('createSpending', () => {
     it('should POST to create a spending', async () => {
       mockFetch.mockResolvedValue(jsonResponse({
-        spending: { id: 's1', name: 'Coffee', amount: 5 },
+        spending: { id: 's1', description: 'Coffee', amount: 5 },
       }));
 
       const result = await client.createSpending({
-        name: 'Coffee',
+        description: 'Coffee',
         amount: 5,
         categoryId: 'c1',
         sourceId: 'src1',
         date: '2026-02-22',
       });
 
-      expect(result.name).toBe('Coffee');
+      expect(result.description).toBe('Coffee');
     });
   });
 
@@ -648,13 +648,13 @@ describe('TrackfusionClient', () => {
   describe('listInvestmentTransactions', () => {
     it('should fetch transactions with filters', async () => {
       mockFetch.mockResolvedValue(jsonResponse({
-        transactions: [{ id: 'tx1', symbol: 'BTC', type: 'buy', quantity: 0.5 }],
+        transactions: [{ id: 'tx1', assetId: 'btc-id', type: 'buy', quantity: 0.5 }],
       }));
 
-      const result = await client.listInvestmentTransactions({ symbol: 'BTC' });
+      const result = await client.listInvestmentTransactions({ assetId: 'btc-id' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/investment-transactions?symbol=BTC',
+        'https://api.example.com/investment-transactions?assetId=btc-id',
         expect.anything()
       );
       expect(result).toHaveLength(1);

@@ -368,7 +368,7 @@ describe('Tool output formatting', () => {
           holdingCount: 8,
         },
         holdings: [
-          { symbol: 'BTC', assetName: 'Bitcoin', quantity: 1.5, currentPrice: 60000, currentValue: 90000, pnl: 40000, pnlPercent: 80 },
+          { assetId: 'btc-id', symbol: 'BTC', assetName: 'Bitcoin', quantity: 1.5, currentPrice: 60000, currentValue: 90000, pnl: 40000, pnlPercent: 80 },
         ],
       }));
 

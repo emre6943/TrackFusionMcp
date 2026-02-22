@@ -875,7 +875,7 @@ server.tool(
   'List investment transactions (buys/sells), optionally filtered',
   {
     assetType: z.string().optional().describe('Filter by type: crypto, stock, etf, commodity, currency'),
-    symbol: z.string().optional().describe('Filter by symbol (e.g., BTC, AAPL)'),
+    assetId: z.string().optional().describe('Filter by asset ID'),
     from: z.string().optional().describe('Start date (YYYY-MM-DD)'),
     to: z.string().optional().describe('End date (YYYY-MM-DD)'),
     limit: z.number().optional().describe('Max results (default: 100)'),
@@ -884,7 +884,7 @@ server.tool(
     try {
       const txs = await client.listInvestmentTransactions(opts);
       const formatted = txs.map((t) =>
-        `${t.type.toUpperCase()} **${t.symbol}** — ${t.quantity} @ ${t.pricePerUnit} ${t.currency} (${t.totalAmount} total) | ${t.date?.slice(0, 10)}`
+        `${t.type.toUpperCase()} **${t.assetId}** — ${t.quantity} @ ${t.pricePerUnit} ${t.currency} (cost: ${t.amountOut || 0}) | ${t.date?.slice(0, 10)}`
       );
       return text(formatted.length > 0 ? formatted.join('\n') : 'No transactions found.');
     } catch (err) {

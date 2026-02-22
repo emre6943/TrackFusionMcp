@@ -492,16 +492,17 @@ export interface InvestmentTransaction {
   id: string;
   type: string;
   assetType: string;
-  assetName: string;
-  symbol: string;
+  assetId: string;
   quantity: number;
   pricePerUnit: number;
-  totalAmount: number;
+  amountIn: number;
+  amountOut: number;
+  fees?: number;
   currency: string;
   date: string;
-  notes?: string;
+  description?: string;
+  sourceId?: string;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface Asset {
@@ -532,6 +533,7 @@ export interface PortfolioSummary {
     holdingCount: number;
   };
   holdings: Array<{
+    assetId: string;
     symbol: string;
     assetName: string;
     assetType: string;
@@ -895,7 +897,7 @@ export class TrackfusionClient {
 
   // ---------- Portfolio ----------
 
-  async listInvestmentTransactions(opts?: { assetType?: string; symbol?: string; from?: string; to?: string; limit?: number }): Promise<InvestmentTransaction[]> {
+  async listInvestmentTransactions(opts?: { assetType?: string; assetId?: string; from?: string; to?: string; limit?: number }): Promise<InvestmentTransaction[]> {
     const qs = this.buildQs(opts || {});
     const data = await this.request<{ transactions: InvestmentTransaction[] }>(`/investment-transactions${qs}`);
     return data.transactions;
