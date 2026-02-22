@@ -116,6 +116,8 @@ describe('TrackfusionClient', () => {
     });
   });
 
+  // ---------- Projects ----------
+
   describe('listProjects', () => {
     it('should fetch projects without archived by default', async () => {
       mockFetch.mockResolvedValue(jsonResponse({
@@ -227,6 +229,486 @@ describe('TrackfusionClient', () => {
 
       const [, options] = mockFetch.mock.calls[0];
       expect(JSON.parse(options.body)).toEqual({ dueDate: null });
+    });
+  });
+
+  // ---------- Habits ----------
+
+  describe('listHabits', () => {
+    it('should fetch all habits by default', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        habits: [{ id: 'h1', name: 'Exercise', isActive: true }],
+      }));
+
+      const result = await client.listHabits();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/habits',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+
+    it('should filter by active status', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ habits: [] }));
+
+      await client.listHabits(true);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/habits?active=true',
+        expect.anything()
+      );
+    });
+  });
+
+  describe('createHabit', () => {
+    it('should POST to create a habit', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        habit: { id: 'h1', name: 'Read', goalFrequency: 1, goalPeriod: 'day' },
+      }));
+
+      const result = await client.createHabit({
+        name: 'Read',
+        goalFrequency: 1,
+        goalPeriod: 'week',
+      });
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/habits');
+      expect(options.method).toBe('POST');
+      expect(result.name).toBe('Read');
+    });
+  });
+
+  describe('toggleHabitEntry', () => {
+    it('should POST to toggle a habit entry', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ toggled: 'on', date: '2026-02-22' }));
+
+      const result = await client.toggleHabitEntry('h1', '2026-02-22');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/habits/h1/entries');
+      expect(options.method).toBe('POST');
+      expect(result.toggled).toBe('on');
+    });
+  });
+
+  describe('getHabitAnalytics', () => {
+    it('should fetch habit analytics', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        analytics: { currentStreak: 5, longestStreak: 10, completionRate: 0.8 },
+      }));
+
+      const result = await client.getHabitAnalytics('h1');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/habits/h1/analytics',
+        expect.anything()
+      );
+      expect(result?.currentStreak).toBe(5);
+    });
+
+    it('should return null when no analytics exist', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ analytics: null }));
+
+      const result = await client.getHabitAnalytics('h1');
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------- Items ----------
+
+  describe('listItems', () => {
+    it('should fetch items with optional filters', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        items: [{ id: 'i1', name: 'Laptop', status: 'active' }],
+      }));
+
+      const result = await client.listItems('active');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/items?status=active',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('createItem', () => {
+    it('should POST to create an item', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        item: { id: 'i1', name: 'Phone', purchasePrice: 999 },
+      }));
+
+      const result = await client.createItem({
+        name: 'Phone',
+        categoryId: 'c1',
+        purchaseDate: '2026-01-15',
+        purchasePrice: 999,
+        currency: 'EUR',
+      });
+
+      expect(result.name).toBe('Phone');
+    });
+  });
+
+  describe('deleteItem', () => {
+    it('should DELETE an item', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ success: true }));
+
+      await client.deleteItem('i1');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/items/i1');
+      expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('listItemCategories', () => {
+    it('should fetch item categories', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        categories: [{ id: 'c1', name: 'Electronics' }],
+      }));
+
+      const result = await client.listItemCategories();
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Electronics');
+    });
+  });
+
+  // ---------- Journal ----------
+
+  describe('listJournalEntries', () => {
+    it('should fetch journal entries with date filters', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        entries: [{ id: 'j1', title: 'My Day' }],
+      }));
+
+      const result = await client.listJournalEntries('2026-02-01', '2026-02-28');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/journal-entries?from=2026-02-01&to=2026-02-28',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('getDayEntry', () => {
+    it('should fetch a day entry', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        dayEntry: { id: 'uid_2026-02-22', date: '2026-02-22', notes: [] },
+      }));
+
+      const result = await client.getDayEntry('2026-02-22');
+      expect(result?.date).toBe('2026-02-22');
+    });
+
+    it('should return null when no day entry exists', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ dayEntry: null }));
+
+      const result = await client.getDayEntry('2026-01-01');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('listJournalTodos', () => {
+    it('should fetch pending todos', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        todos: [{ id: 'td1', title: 'Buy milk', isCompleted: false }],
+      }));
+
+      const result = await client.listJournalTodos(false);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/journal-todos?completed=false',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  // ---------- Spending ----------
+
+  describe('listSpendings', () => {
+    it('should fetch spendings with filters', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        spendings: [{ id: 's1', name: 'Groceries', amount: 50 }],
+      }));
+
+      const result = await client.listSpendings({ from: '2026-02-01', categoryId: 'cat1' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/spendings?from=2026-02-01&categoryId=cat1',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('createSpending', () => {
+    it('should POST to create a spending', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        spending: { id: 's1', name: 'Coffee', amount: 5 },
+      }));
+
+      const result = await client.createSpending({
+        name: 'Coffee',
+        amount: 5,
+        categoryId: 'c1',
+        sourceId: 'src1',
+        date: '2026-02-22',
+      });
+
+      expect(result.name).toBe('Coffee');
+    });
+  });
+
+  describe('deleteSpending', () => {
+    it('should DELETE a spending', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ success: true }));
+
+      await client.deleteSpending('s1');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/spendings/s1');
+      expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('listIncomes', () => {
+    it('should fetch incomes', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        incomes: [{ id: 'inc1', name: 'Salary', income: 5000 }],
+      }));
+
+      const result = await client.listIncomes('2026-02-01', '2026-02-28');
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('listSpendingCategories', () => {
+    it('should fetch spending categories', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        categories: [{ id: 'c1', name: 'Food', emoji: '🍕' }],
+      }));
+
+      const result = await client.listSpendingCategories();
+      expect(result[0].name).toBe('Food');
+    });
+  });
+
+  describe('listSpendingSources', () => {
+    it('should fetch spending sources', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        sources: [{ id: 'src1', name: 'Credit Card' }],
+      }));
+
+      const result = await client.listSpendingSources();
+      expect(result[0].name).toBe('Credit Card');
+    });
+  });
+
+  describe('getSpendingAnalytics', () => {
+    it('should fetch spending analytics', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        analytics: { totalSpend: 1500, totalIncome: 5000 },
+      }));
+
+      const result = await client.getSpendingAnalytics('2026-02');
+      expect(result?.totalSpend).toBe(1500);
+    });
+  });
+
+  // ---------- People ----------
+
+  describe('listPeople', () => {
+    it('should fetch people with search', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        people: [{ id: 'p1', name: 'Alice' }],
+      }));
+
+      const result = await client.listPeople({ search: 'ali' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/people?search=ali',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('createPerson', () => {
+    it('should POST to create a person', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        person: { id: 'p1', name: 'Bob', relationshipTypeName: 'Friend' },
+      }));
+
+      const result = await client.createPerson({
+        name: 'Bob',
+        relationshipTypeId: 'rt1',
+      });
+
+      expect(result.name).toBe('Bob');
+    });
+  });
+
+  describe('addInteraction', () => {
+    it('should POST to add an interaction', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        interaction: { id: 'int-1', typeName: 'Met in person', dateString: '2026-02-22', note: 'Had coffee' },
+      }));
+
+      const result = await client.addInteraction('p1', {
+        typeId: 'it1',
+        date: '2026-02-22',
+        note: 'Had coffee',
+      });
+
+      expect(result.typeName).toBe('Met in person');
+    });
+  });
+
+  // ---------- Exercise ----------
+
+  describe('listWorkoutSessions', () => {
+    it('should fetch workout sessions', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        sessions: [{ id: 'ws1', dateString: '2026-02-22', exercises: [] }],
+      }));
+
+      const result = await client.listWorkoutSessions('2026-02-01');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/workout-sessions?from=2026-02-01',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('createWorkoutSession', () => {
+    it('should POST to create a workout session', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        session: { id: 'ws1', dateString: '2026-02-22', exercises: [], totalVolume: 5000 },
+      }));
+
+      const result = await client.createWorkoutSession({
+        date: '2026-02-22',
+        exercises: [{
+          exerciseDefinitionId: 'ex1',
+          sets: [{ reps: 10, weight: 50 }],
+        }],
+      });
+
+      expect(result.id).toBe('ws1');
+    });
+  });
+
+  describe('listWorkoutTemplates', () => {
+    it('should fetch workout templates', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        templates: [{ id: 'wt1', name: 'Push Day' }],
+      }));
+
+      const result = await client.listWorkoutTemplates();
+      expect(result[0].name).toBe('Push Day');
+    });
+  });
+
+  describe('listExerciseDefinitions', () => {
+    it('should fetch exercise definitions', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        exercises: [{ id: 'ed1', name: 'Bench Press', muscleGroups: ['chest'] }],
+      }));
+
+      const result = await client.listExerciseDefinitions();
+      expect(result[0].name).toBe('Bench Press');
+    });
+  });
+
+  describe('getPersonalRecords', () => {
+    it('should fetch personal records with exercise filter', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        records: [{ id: 'pr1', exerciseName: 'Squat', type: 'max-weight', value: 140 }],
+      }));
+
+      const result = await client.getPersonalRecords('ed1');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/personal-records?exerciseId=ed1',
+        expect.anything()
+      );
+      expect(result[0].value).toBe(140);
+    });
+  });
+
+  // ---------- Portfolio ----------
+
+  describe('listInvestmentTransactions', () => {
+    it('should fetch transactions with filters', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        transactions: [{ id: 'tx1', symbol: 'BTC', type: 'buy', quantity: 0.5 }],
+      }));
+
+      const result = await client.listInvestmentTransactions({ symbol: 'BTC' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/investment-transactions?symbol=BTC',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('listAssets', () => {
+    it('should fetch assets with type filter', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        assets: [{ id: 'a1', symbol: 'BTC', name: 'Bitcoin' }],
+      }));
+
+      const result = await client.listAssets('crypto');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/assets?assetType=crypto',
+        expect.anything()
+      );
+      expect(result[0].symbol).toBe('BTC');
+    });
+  });
+
+  describe('getAssetPriceHistory', () => {
+    it('should fetch price history', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        asset: { id: 'a1', symbol: 'BTC', name: 'Bitcoin' },
+        prices: [{ id: '2026-02-22', price: 50000 }],
+      }));
+
+      const result = await client.getAssetPriceHistory('a1', '2026-02-01');
+
+      expect(result.asset.symbol).toBe('BTC');
+      expect(result.prices).toHaveLength(1);
+    });
+  });
+
+  describe('getPortfolioSummary', () => {
+    it('should fetch portfolio summary', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        summary: {
+          totalValue: 100000,
+          totalInvested: 80000,
+          totalPnl: 20000,
+          totalPnlPercent: 25,
+          allocationByType: { crypto: 60000, stock: 40000 },
+          holdingCount: 5,
+        },
+        holdings: [],
+      }));
+
+      const result = await client.getPortfolioSummary();
+
+      expect(result.summary.totalValue).toBe(100000);
+      expect(result.summary.holdingCount).toBe(5);
     });
   });
 });

@@ -1,16 +1,12 @@
 /**
- * Tests for MCP tool handlers.
+ * Tests for MCP tool output formatting.
  *
- * We import the module, mock the client, and call tools via the server's
- * internal handler map. Since McpServer doesn't expose handlers directly,
- * we test by mocking the client methods and verifying tool output formatting.
+ * We mock the client methods and verify the formatting logic
+ * that the tool handlers use.
  */
 
 import { jest } from '@jest/globals';
 import { TrackfusionClient } from '../client.js';
-
-// We'll test the tool logic by directly calling client methods and verifying
-// the formatting logic matches what the tools produce.
 
 const mockFetch = jest.fn() as jest.Mock;
 global.fetch = mockFetch;
@@ -244,6 +240,142 @@ describe('Tool output formatting', () => {
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(body.dueDate).toBeNull();
+    });
+  });
+
+  // ---------- New module formatting tests ----------
+
+  describe('habits formatting', () => {
+    it('should format habit list with goals', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        habits: [{
+          id: 'h1', name: 'Exercise', emoji: '🏋️', isActive: true,
+          goalFrequency: 3, goalPeriod: 'week', priority: 1,
+          startDate: '2026-01-01T00:00:00Z',
+        }],
+      }));
+
+      const habits = await client.listHabits(true);
+      expect(habits[0].name).toBe('Exercise');
+      expect(habits[0].goalFrequency).toBe(3);
+    });
+  });
+
+  describe('items formatting', () => {
+    it('should format item list with price and status', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        items: [{
+          id: 'i1', name: 'MacBook Pro', status: 'active',
+          purchasePrice: 2499, currency: 'EUR',
+          purchaseDate: '2025-06-15T00:00:00Z',
+        }],
+      }));
+
+      const items = await client.listItems('active');
+      expect(items[0].purchasePrice).toBe(2499);
+      expect(items[0].status).toBe('active');
+    });
+  });
+
+  describe('journal formatting', () => {
+    it('should format journal entries', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        entries: [{
+          id: 'j1', title: 'Great Day', content: '<p>Had fun</p>',
+          emoji: '😊', mood: 'happy',
+          createdAt: '2026-02-22T10:00:00Z',
+        }],
+      }));
+
+      const entries = await client.listJournalEntries();
+      expect(entries[0].title).toBe('Great Day');
+      expect(entries[0].mood).toBe('happy');
+    });
+
+    it('should format todos with completion status', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        todos: [
+          { id: 'td1', title: 'Buy groceries', isCompleted: false, priority: 'high' },
+          { id: 'td2', title: 'Call dentist', isCompleted: true, priority: 'medium' },
+        ],
+      }));
+
+      const todos = await client.listJournalTodos();
+      expect(todos[0].isCompleted).toBe(false);
+      expect(todos[1].isCompleted).toBe(true);
+    });
+  });
+
+  describe('spending formatting', () => {
+    it('should format spendings with amounts', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        spendings: [{
+          id: 's1', name: 'Groceries', amount: 85.50,
+          date: '2026-02-22T00:00:00Z',
+        }],
+      }));
+
+      const spendings = await client.listSpendings();
+      expect(spendings[0].amount).toBe(85.50);
+    });
+  });
+
+  describe('people formatting', () => {
+    it('should format people with relationship and interactions', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        people: [{
+          id: 'p1', name: 'Alice', relationshipTypeName: 'Close Friend',
+          interactions: [
+            { id: 'int1', typeName: 'Met in person', dateString: '2026-02-20', note: 'Coffee' },
+          ],
+          connections: [{ personId: 'p2', personName: 'Bob' }],
+          lastContactedAt: '2026-02-20T00:00:00Z',
+        }],
+      }));
+
+      const people = await client.listPeople();
+      expect(people[0].interactions).toHaveLength(1);
+      expect(people[0].connections).toHaveLength(1);
+    });
+  });
+
+  describe('exercise formatting', () => {
+    it('should format workout sessions with exercises', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        sessions: [{
+          id: 'ws1', dateString: '2026-02-22', name: 'Push Day',
+          exercises: [
+            { id: 'e1', exerciseName: 'Bench Press', sets: [{ reps: 10, weight: 80 }] },
+            { id: 'e2', exerciseName: 'Shoulder Press', sets: [{ reps: 12, weight: 30 }] },
+          ],
+          totalVolume: 1160, durationMinutes: 60,
+        }],
+      }));
+
+      const sessions = await client.listWorkoutSessions();
+      expect(sessions[0].exercises).toHaveLength(2);
+      expect(sessions[0].totalVolume).toBe(1160);
+    });
+  });
+
+  describe('portfolio formatting', () => {
+    it('should format portfolio summary', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        summary: {
+          totalValue: 150000, totalInvested: 100000,
+          totalPnl: 50000, totalPnlPercent: 50,
+          allocationByType: { crypto: 90000, stock: 60000 },
+          holdingCount: 8,
+        },
+        holdings: [
+          { symbol: 'BTC', assetName: 'Bitcoin', quantity: 1.5, currentPrice: 60000, currentValue: 90000, pnl: 40000, pnlPercent: 80 },
+        ],
+      }));
+
+      const result = await client.getPortfolioSummary();
+      expect(result.summary.totalPnlPercent).toBe(50);
+      expect(result.holdings).toHaveLength(1);
+      expect(result.holdings[0].symbol).toBe('BTC');
     });
   });
 });
