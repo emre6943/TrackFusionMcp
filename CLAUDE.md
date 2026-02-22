@@ -38,6 +38,36 @@ Two source files:
 - Helper `jsonResponse(data, status)` creates mock fetch responses
 - Two test files: `client.test.ts` (client methods, retry logic, error handling) and `tools.test.ts` (tool output formatting)
 
+## Task Description Formatting
+
+**CRITICAL:** Task descriptions are rendered in a Tiptap rich text editor. The `description` field must be **valid HTML**, not markdown or plain text. Raw text without HTML tags renders as an unreadable wall of text.
+
+### Supported HTML tags
+
+| Element | Tag |
+|---------|-----|
+| Paragraph | `<p>` |
+| Headings | `<h1>`, `<h2>`, `<h3>` |
+| Bold | `<strong>` |
+| Italic | `<em>` |
+| Inline code | `<code>` |
+| Code block | `<pre><code>` |
+| Bullet list | `<ul><li><p>text</p></li></ul>` |
+| Numbered list | `<ol><li><p>text</p></li></ol>` |
+| Checklist | `<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"><span></span></label><div><p>text</p></div></li></ul>` |
+| Table | `<table><tr><th>header</th></tr><tr><td>cell</td></tr></table>` |
+| Divider | `<hr>` |
+| Blockquote | `<blockquote><p>text</p></blockquote>` |
+
+### Rules
+- **Always** wrap text in block elements (`<p>`, `<h2>`, `<li>`, etc.) — never send raw text
+- Use `<h2>` for section headings (e.g., Goal, Acceptance Criteria)
+- Use `<hr>` between major sections for visual separation
+- Use `<ul data-type="taskList">` for acceptance criteria / checklists
+- Use `<ul><li><p>` for bullet lists (the `<p>` inside `<li>` is required)
+- Use `<table>` for structured comparisons (routes, widget types, etc.)
+- Keep descriptions scannable — headings, short bullets, not walls of text
+
 ## Environment Variables
 
 - `TRACKFUSION_API_KEY` (required) — API key with `tf_` prefix

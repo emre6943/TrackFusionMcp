@@ -119,7 +119,7 @@ server.tool(
   {
     projectId: z.string().describe('Project ID'),
     title: z.string().describe('Task title'),
-    description: z.string().optional().describe('Task description'),
+    description: z.string().optional().describe('Task description as HTML (rendered in Tiptap rich text editor). Supported tags: <h1>/<h2>/<h3> headings, <p> paragraphs, <ul><li> bullet lists, <ol><li> numbered lists, <ul data-type="taskList"><li data-type="taskItem" data-checked="false"> checklists, <strong> bold, <em> italic, <code> inline code, <pre><code> code blocks, <table><tr><th>/<td> tables, <hr> dividers, <blockquote> quotes. Always wrap text in block elements (<p>, <h2>, <li>, etc.) — never send raw text.'),
     status: z.enum(['backlog', 'todo', 'in-progress', 'testing', 'done']).optional().describe('Initial status (default: todo)'),
     priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('Priority (default: medium)'),
     dueDate: z.string().optional().describe('Due date in ISO format (YYYY-MM-DD or full ISO)'),
@@ -143,7 +143,7 @@ server.tool(
   {
     taskId: z.string().describe('Task ID'),
     title: z.string().optional().describe('New title'),
-    description: z.string().optional().describe('New description'),
+    description: z.string().optional().describe('New description as HTML (rendered in Tiptap rich text editor). Supported tags: <h1>/<h2>/<h3> headings, <p> paragraphs, <ul><li> bullet lists, <ol><li> numbered lists, <ul data-type="taskList"><li data-type="taskItem" data-checked="false"> checklists, <strong> bold, <em> italic, <code> inline code, <pre><code> code blocks, <table><tr><th>/<td> tables, <hr> dividers, <blockquote> quotes. Always wrap text in block elements (<p>, <h2>, <li>, etc.) — never send raw text.'),
     status: z.enum(['backlog', 'todo', 'in-progress', 'testing', 'done']).optional().describe('New status'),
     priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('New priority'),
     dueDate: z.string().nullable().optional().describe('New due date (ISO format), or null to clear'),
