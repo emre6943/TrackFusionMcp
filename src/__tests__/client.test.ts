@@ -711,4 +711,126 @@ describe('TrackfusionClient', () => {
       expect(result.summary.holdingCount).toBe(5);
     });
   });
+
+  // ---------- Friends ----------
+
+  describe('listFriends', () => {
+    it('should fetch friends list', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        friends: [
+          { id: 'f1', friendUserId: 'u2', friendName: 'Alice', friendEmail: 'alice@example.com', createdAt: '2026-02-01T00:00:00Z' },
+        ],
+      }));
+
+      const result = await client.listFriends();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/friends',
+        expect.anything()
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].friendName).toBe('Alice');
+    });
+  });
+
+  describe('listFriendRequests', () => {
+    it('should fetch friend requests', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        requests: [
+          { id: 'fr1', direction: 'incoming', userId: 'u3', displayName: 'Bob', email: 'bob@example.com', createdAt: '2026-02-20T00:00:00Z' },
+          { id: 'fr2', direction: 'outgoing', userId: 'u4', displayName: 'Carol', email: 'carol@example.com', createdAt: '2026-02-21T00:00:00Z' },
+        ],
+      }));
+
+      const result = await client.listFriendRequests();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/friend-requests',
+        expect.anything()
+      );
+      expect(result).toHaveLength(2);
+      expect(result[0].direction).toBe('incoming');
+      expect(result[1].direction).toBe('outgoing');
+    });
+  });
+
+  describe('sendFriendRequest', () => {
+    it('should POST to send a friend request', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        friendship: { id: 'fr-new' },
+      }));
+
+      const result = await client.sendFriendRequest('alice@example.com');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/friend-requests');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body)).toEqual({ email: 'alice@example.com' });
+      expect(result.friendship.id).toBe('fr-new');
+    });
+  });
+
+  describe('respondToFriendRequest', () => {
+    it('should PATCH to accept a friend request', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({}));
+
+      await client.respondToFriendRequest('fr1', 'accept');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/friend-requests/fr1');
+      expect(options.method).toBe('PATCH');
+      expect(JSON.parse(options.body)).toEqual({ action: 'accept' });
+    });
+
+    it('should PATCH to reject a friend request', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({}));
+
+      await client.respondToFriendRequest('fr2', 'reject');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/friend-requests/fr2');
+      expect(options.method).toBe('PATCH');
+      expect(JSON.parse(options.body)).toEqual({ action: 'reject' });
+    });
+  });
+
+  describe('deleteFriend', () => {
+    it('should DELETE a friend', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ success: true }));
+
+      await client.deleteFriend('f1');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/friends/f1');
+      expect(options.method).toBe('DELETE');
+    });
+  });
+
+  // ---------- Project Sharing ----------
+
+  describe('shareProject', () => {
+    it('should PATCH to share a project with a friend', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({}));
+
+      await client.shareProject('proj-1', 'user-2');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/projects/proj-1/sharing');
+      expect(options.method).toBe('PATCH');
+      expect(JSON.parse(options.body)).toEqual({ action: 'add', friendUserId: 'user-2' });
+    });
+  });
+
+  describe('unshareProject', () => {
+    it('should PATCH to unshare a project', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({}));
+
+      await client.unshareProject('proj-1', 'user-2');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/projects/proj-1/sharing');
+      expect(options.method).toBe('PATCH');
+      expect(JSON.parse(options.body)).toEqual({ action: 'remove', friendUserId: 'user-2' });
+    });
+  });
 });

@@ -378,4 +378,99 @@ describe('Tool output formatting', () => {
       expect(result.holdings[0].symbol).toBe('BTC');
     });
   });
+
+  // ---------- Friends formatting ----------
+
+  describe('list_friends formatting', () => {
+    it('should format friends with name and email', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        friends: [
+          { id: 'f1', friendUserId: 'u2', friendName: 'Alice Smith', friendEmail: 'alice@example.com', createdAt: '2026-01-15T00:00:00Z' },
+          { id: 'f2', friendUserId: 'u3', friendName: 'Bob Jones', friendEmail: 'bob@example.com', createdAt: '2026-02-01T00:00:00Z' },
+        ],
+      }));
+
+      const friends = await client.listFriends();
+
+      expect(friends).toHaveLength(2);
+      expect(friends[0].friendName).toBe('Alice Smith');
+      expect(friends[0].friendEmail).toBe('alice@example.com');
+      expect(friends[0].friendUserId).toBe('u2');
+      expect(friends[1].friendName).toBe('Bob Jones');
+    });
+
+    it('should handle empty friends list', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ friends: [] }));
+
+      const friends = await client.listFriends();
+      expect(friends).toEqual([]);
+    });
+  });
+
+  describe('list_friend_requests formatting', () => {
+    it('should format requests with direction', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        requests: [
+          { id: 'fr1', direction: 'incoming', userId: 'u5', displayName: 'Eve', email: 'eve@example.com', createdAt: '2026-02-20T00:00:00Z' },
+          { id: 'fr2', direction: 'outgoing', userId: 'u6', displayName: 'Frank', email: 'frank@example.com', createdAt: '2026-02-21T00:00:00Z' },
+        ],
+      }));
+
+      const requests = await client.listFriendRequests();
+
+      expect(requests).toHaveLength(2);
+      expect(requests[0].direction).toBe('incoming');
+      expect(requests[0].displayName).toBe('Eve');
+      expect(requests[0].email).toBe('eve@example.com');
+      expect(requests[1].direction).toBe('outgoing');
+      expect(requests[1].displayName).toBe('Frank');
+    });
+
+    it('should handle empty requests list', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ requests: [] }));
+
+      const requests = await client.listFriendRequests();
+      expect(requests).toEqual([]);
+    });
+  });
+
+  describe('list_projects shared status', () => {
+    it('should include sharedWith and isOwner fields', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        projects: [{
+          id: 'p1',
+          name: 'Shared Project',
+          emoji: '📋',
+          sharedWith: ['user-2', 'user-3'],
+          isOwner: true,
+          taskCounts: { backlog: 0, todo: 1, 'in-progress': 0, testing: 0, done: 2 },
+          lastActivityAt: '2026-02-22T10:00:00Z',
+        }],
+      }));
+
+      const projects = await client.listProjects();
+      const p = projects[0];
+
+      expect(p.sharedWith).toEqual(['user-2', 'user-3']);
+      expect(p.isOwner).toBe(true);
+    });
+
+    it('should handle projects without sharing fields', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        projects: [{
+          id: 'p2',
+          name: 'Private Project',
+          emoji: '🔒',
+          taskCounts: { backlog: 0, todo: 0, 'in-progress': 0, testing: 0, done: 0 },
+          lastActivityAt: '2026-02-22T10:00:00Z',
+        }],
+      }));
+
+      const projects = await client.listProjects();
+      const p = projects[0];
+
+      expect(p.sharedWith).toBeUndefined();
+      expect(p.isOwner).toBeUndefined();
+    });
+  });
 });

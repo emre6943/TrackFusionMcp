@@ -26,6 +26,8 @@ export interface Project {
   emoji: string;
   color: string;
   isArchived: boolean;
+  sharedWith?: string[];
+  isOwner?: boolean;
   taskCounts: Record<string, number>;
   overdueCount: number;
   createdAt: string;
@@ -547,6 +549,27 @@ export interface PortfolioSummary {
 }
 
 // ============================================
+// FRIENDS
+// ============================================
+
+export interface Friend {
+  id: string;
+  friendUserId: string;
+  friendName: string;
+  friendEmail: string;
+  createdAt: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  direction: string;
+  userId: string;
+  displayName: string;
+  email: string;
+  createdAt: string;
+}
+
+// ============================================
 // CLIENT
 // ============================================
 
@@ -916,5 +939,51 @@ export class TrackfusionClient {
 
   async getPortfolioSummary(): Promise<PortfolioSummary> {
     return this.request<PortfolioSummary>('/portfolio-summary');
+  }
+
+  // ---------- Friends ----------
+
+  async listFriends(): Promise<Friend[]> {
+    const data = await this.request<{ friends: Friend[] }>('/friends');
+    return data.friends;
+  }
+
+  async listFriendRequests(): Promise<FriendRequest[]> {
+    const data = await this.request<{ requests: FriendRequest[] }>('/friend-requests');
+    return data.requests;
+  }
+
+  async sendFriendRequest(email: string): Promise<{ friendship: { id: string } }> {
+    return this.request<{ friendship: { id: string } }>('/friend-requests', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async respondToFriendRequest(id: string, action: 'accept' | 'reject'): Promise<void> {
+    await this.request(`/friend-requests/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action }),
+    });
+  }
+
+  async deleteFriend(id: string): Promise<void> {
+    await this.request(`/friends/${id}`, { method: 'DELETE' });
+  }
+
+  // ---------- Project Sharing ----------
+
+  async shareProject(projectId: string, friendUserId: string): Promise<void> {
+    await this.request(`/projects/${projectId}/sharing`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'add', friendUserId }),
+    });
+  }
+
+  async unshareProject(projectId: string, friendUserId: string): Promise<void> {
+    await this.request(`/projects/${projectId}/sharing`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action: 'remove', friendUserId }),
+    });
   }
 }

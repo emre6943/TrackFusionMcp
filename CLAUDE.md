@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Trackfusion MCP Server — an MCP (Model Context Protocol) server that exposes all Trackfusion modules (projects, habits, items, journal, spending, people, exercise, portfolio) to AI assistants. 37 tools total. Communicates via stdio, authenticates via `TRACKFUSION_API_KEY` Bearer token against the Trackfusion REST API.
+Trackfusion MCP Server — an MCP (Model Context Protocol) server that exposes all Trackfusion modules (projects, habits, items, journal, spending, people, exercise, portfolio, friends) to AI assistants. 44 tools total. Communicates via stdio, authenticates via `TRACKFUSION_API_KEY` Bearer token against the Trackfusion REST API.
 
 ## Commands
 
@@ -19,8 +19,8 @@ npx jest --forceExit src/__tests__/client.test.ts  # Run a single test file
 
 Two source files:
 
-- **`src/client.ts`** — `TrackfusionClient` class: HTTP client wrapping the Trackfusion REST API. Bearer token auth, 30s timeout, single retry on 503/network errors. All methods return unwrapped response data (e.g. `data.projects` not `data`). Contains interfaces for all 8 modules and ~30 methods.
-- **`src/index.ts`** — MCP server entry point (shebang `#!/usr/bin/env node`). Registers 37 tools across 8 modules using `@modelcontextprotocol/sdk`. Each tool handler calls the client, formats output as markdown text, and returns `{ content: [{ type: 'text', text }] }`. Errors return `isError: true`. Helper functions `errText()` and `text()` standardize responses.
+- **`src/client.ts`** — `TrackfusionClient` class: HTTP client wrapping the Trackfusion REST API. Bearer token auth, 30s timeout, single retry on 503/network errors. All methods return unwrapped response data (e.g. `data.projects` not `data`). Contains interfaces for all 9 modules and ~37 methods.
+- **`src/index.ts`** — MCP server entry point (shebang `#!/usr/bin/env node`). Registers 44 tools across 9 modules using `@modelcontextprotocol/sdk`. Each tool handler calls the client, formats output as markdown text, and returns `{ content: [{ type: 'text', text }] }`. Errors return `isError: true`. Helper functions `errText()` and `text()` standardize responses.
 
 ### Tools by module
 
@@ -34,6 +34,7 @@ Two source files:
 | People | `list_people`, `create_person`, `update_person`, `add_interaction` | `people:read/write` |
 | Exercise | `list_workout_sessions`, `create_workout_session`, `list_workout_templates`, `list_exercises`, `get_personal_records` | `exercise:read/write` |
 | Portfolio | `list_investment_transactions`, `list_assets`, `get_asset_price_history`, `get_portfolio_summary` | `portfolio:read` |
+| Friends | `list_friends`, `list_friend_requests`, `send_friend_request`, `respond_to_friend_request`, `delete_friend`, `share_project`, `unshare_project` | `friends:read/write` |
 
 ## Backend API Coupling
 
@@ -60,7 +61,7 @@ After any Backend API change: `cd mcp && npm run build && npm test`
 - Jest 30 with `ts-jest` in ESM mode (`useESM: true`)
 - Tests mock `global.fetch` directly — no HTTP server needed
 - Helper `jsonResponse(data, status)` creates mock fetch responses
-- Two test files (69 tests total):
+- Two test files (83 tests total):
   - `client.test.ts` — Client methods for all 8 modules, retry logic, error handling
   - `tools.test.ts` — Tool output formatting for all modules
 

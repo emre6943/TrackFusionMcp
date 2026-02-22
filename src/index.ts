@@ -55,7 +55,9 @@ server.tool(
         const total = Object.values(p.taskCounts).reduce((s, n) => s + n, 0);
         const done = p.taskCounts['done'] || 0;
         const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-        return `${p.emoji} **${p.name}** (${p.id})\n  Tasks: ${total} total, ${done} done (${pct}%)\n  Status counts: ${JSON.stringify(p.taskCounts)}\n  Last activity: ${p.lastActivityAt}`;
+        const shared = p.sharedWith && p.sharedWith.length > 0 ? ` | Shared with ${p.sharedWith.length} user(s)` : '';
+        const ownership = p.isOwner === false ? ' | 👤 Shared with you' : '';
+        return `${p.emoji} **${p.name}** (${p.id})\n  Tasks: ${total} total, ${done} done (${pct}%)\n  Status counts: ${JSON.stringify(p.taskCounts)}\n  Last activity: ${p.lastActivityAt}${shared}${ownership}`;
       });
       return text(formatted.length > 0 ? formatted.join('\n\n') : 'No projects found.');
     } catch (err) {
@@ -959,6 +961,129 @@ server.tool(
       );
 
       return text(header + (holdingLines.length > 0 ? '\n\n' + holdingLines.join('\n') : ''));
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+// ============================================
+// FRIENDS
+// ============================================
+
+server.tool(
+  'list_friends',
+  'List your accepted friends',
+  {},
+  async () => {
+    try {
+      const friends = await client.listFriends();
+      const formatted = friends.map((f) =>
+        `**${f.friendName}** (${f.friendUserId}) — ${f.friendEmail}`
+      );
+      return text(formatted.length > 0 ? formatted.join('\n') : 'No friends yet.');
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'list_friend_requests',
+  'List pending friend requests (sent and received)',
+  {},
+  async () => {
+    try {
+      const requests = await client.listFriendRequests();
+      if (requests.length === 0) return text('No pending friend requests.');
+      const formatted = requests.map((r) => {
+        const dir = r.direction === 'received' ? '⬅ From' : '➡ To';
+        return `${dir} **${r.displayName}** (${r.email}) — ID: ${r.id}`;
+      });
+      return text(formatted.join('\n'));
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'send_friend_request',
+  'Send a friend request by email address',
+  {
+    email: z.string().describe('Email address of the user to send a friend request to'),
+  },
+  async ({ email }) => {
+    try {
+      const result = await client.sendFriendRequest(email);
+      return text(`Friend request sent! (ID: ${result.friendship.id})`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'respond_to_friend_request',
+  'Accept or reject a pending friend request',
+  {
+    friendshipId: z.string().describe('Friendship ID from list_friend_requests'),
+    action: z.enum(['accept', 'reject']).describe('Accept or reject the request'),
+  },
+  async ({ friendshipId, action }) => {
+    try {
+      await client.respondToFriendRequest(friendshipId, action);
+      return text(`Friend request ${action}ed.`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'delete_friend',
+  'Remove a friend (also removes them from any shared projects)',
+  {
+    friendshipId: z.string().describe('Friendship ID'),
+  },
+  async ({ friendshipId }) => {
+    try {
+      await client.deleteFriend(friendshipId);
+      return text('Friend removed.');
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'share_project',
+  'Share a project with a friend (owner only)',
+  {
+    projectId: z.string().describe('Project ID'),
+    friendUserId: z.string().describe('Friend user ID to share with'),
+  },
+  async ({ projectId, friendUserId }) => {
+    try {
+      await client.shareProject(projectId, friendUserId);
+      return text(`Project shared with user ${friendUserId}.`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'unshare_project',
+  'Remove a friend from a shared project (owner only)',
+  {
+    projectId: z.string().describe('Project ID'),
+    friendUserId: z.string().describe('Friend user ID to remove'),
+  },
+  async ({ projectId, friendUserId }) => {
+    try {
+      await client.unshareProject(projectId, friendUserId);
+      return text(`User ${friendUserId} removed from project.`);
     } catch (err) {
       return errText(err);
     }
