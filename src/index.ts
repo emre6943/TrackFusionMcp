@@ -676,7 +676,8 @@ server.tool(
       const people = await client.listPeople(opts);
       const formatted = people.map((p) => {
         const lastContact = p.lastContactedAt ? ` | Last contact: ${p.lastContactedAt.slice(0, 10)}` : '';
-        return `**${p.name}** (${p.id}) — ${p.relationshipTypeName}${lastContact}\n  Interactions: ${p.interactions?.length || 0} | Connections: ${p.connections?.length || 0}`;
+        const linked = p.linkedFriendName ? ` | Linked: ${p.linkedFriendName}` : '';
+        return `**${p.name}** (${p.id}) — ${p.relationshipTypeName}${lastContact}${linked}\n  Interactions: ${p.interactions?.length || 0} | Connections: ${p.connections?.length || 0}`;
       });
       return text(formatted.length > 0 ? formatted.join('\n\n') : 'No people found.');
     } catch (err) {
@@ -696,6 +697,9 @@ server.tool(
     birthday: z.string().optional().describe('Birthday (YYYY-MM-DD)'),
     location: z.string().optional().describe('Location'),
     priority: z.number().optional().describe('Priority 1-5 (affects graph node size, default: 3)'),
+    linkedFriendUserId: z.string().optional().describe('Link to a TrackFusion friend by their user ID (use list_friends to find)'),
+    linkedFriendName: z.string().optional().describe('Display name of the linked friend'),
+    linkedFriendEmail: z.string().optional().describe('Email of the linked friend'),
   },
   async (input) => {
     try {
@@ -719,10 +723,26 @@ server.tool(
     location: z.string().optional().describe('New location'),
     priority: z.number().optional().describe('New priority (1-5)'),
     isArchived: z.boolean().optional().describe('Archive/unarchive'),
+    linkedFriendUserId: z.string().nullable().optional().describe('Link to a TrackFusion friend by user ID, or null to unlink'),
+    linkedFriendName: z.string().optional().describe('Display name of the linked friend'),
+    linkedFriendEmail: z.string().optional().describe('Email of the linked friend'),
   },
   async ({ personId, ...input }) => {
     try {
-      const person = await client.updatePerson(personId, input);
+      const updates: UpdatePersonInput = {};
+      if (input.name !== undefined) updates.name = input.name;
+      if (input.nickname !== undefined) updates.nickname = input.nickname;
+      if (input.description !== undefined) updates.description = input.description;
+      if (input.birthday !== undefined) updates.birthday = input.birthday;
+      if (input.location !== undefined) updates.location = input.location;
+      if (input.priority !== undefined) updates.priority = input.priority;
+      if (input.isArchived !== undefined) updates.isArchived = input.isArchived;
+      if (input.linkedFriendUserId !== undefined) {
+        updates.linkedFriendUserId = input.linkedFriendUserId === null ? '' : input.linkedFriendUserId;
+        updates.linkedFriendName = input.linkedFriendName;
+        updates.linkedFriendEmail = input.linkedFriendEmail;
+      }
+      const person = await client.updatePerson(personId, updates);
       return text(`Person updated: **${person.name}** (${person.id})`);
     } catch (err) {
       return errText(err);

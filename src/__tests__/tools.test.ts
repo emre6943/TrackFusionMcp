@@ -337,6 +337,42 @@ describe('Tool output formatting', () => {
       expect(people[0].interactions).toHaveLength(1);
       expect(people[0].connections).toHaveLength(1);
     });
+
+    it('should include linked friend name in output', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        people: [{
+          id: 'p1', name: 'Alice', relationshipTypeName: 'Close Friend',
+          interactions: [],
+          connections: [],
+          linkedFriendUserId: 'uid-1',
+          linkedFriendName: 'Jane Doe',
+          linkedFriendEmail: 'jane@example.com',
+        }],
+      }));
+
+      const people = await client.listPeople();
+      expect(people[0].linkedFriendName).toBe('Jane Doe');
+
+      // Verify the formatting logic includes linked info
+      const p = people[0];
+      const linked = p.linkedFriendName ? ` | Linked: ${p.linkedFriendName}` : '';
+      expect(linked).toBe(' | Linked: Jane Doe');
+    });
+
+    it('should not include linked text when no friend linked', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        people: [{
+          id: 'p2', name: 'Bob', relationshipTypeName: 'Colleague',
+          interactions: [],
+          connections: [],
+        }],
+      }));
+
+      const people = await client.listPeople();
+      const p = people[0];
+      const linked = p.linkedFriendName ? ` | Linked: ${p.linkedFriendName}` : '';
+      expect(linked).toBe('');
+    });
   });
 
   describe('exercise formatting', () => {

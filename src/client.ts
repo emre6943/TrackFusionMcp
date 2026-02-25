@@ -327,6 +327,9 @@ export interface Person {
   tags: Array<{ tagId: string; tagName: string; categoryName: string; color: string }>;
   pros: string[];
   cons: string[];
+  linkedFriendUserId?: string;
+  linkedFriendName?: string;
+  linkedFriendEmail?: string;
   lastContactedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -356,6 +359,9 @@ export interface CreatePersonInput {
   birthday?: string;
   location?: string;
   priority?: number;
+  linkedFriendUserId?: string;
+  linkedFriendName?: string;
+  linkedFriendEmail?: string;
 }
 
 export interface UpdatePersonInput {
@@ -370,6 +376,9 @@ export interface UpdatePersonInput {
   tags?: Array<{ tagId: string; tagName: string; categoryName: string; color: string }>;
   pros?: string[];
   cons?: string[];
+  linkedFriendUserId?: string | null;
+  linkedFriendName?: string;
+  linkedFriendEmail?: string;
 }
 
 export interface AddInteractionInput {

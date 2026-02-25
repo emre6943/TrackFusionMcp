@@ -551,6 +551,59 @@ describe('TrackfusionClient', () => {
 
       expect(result.name).toBe('Bob');
     });
+
+    it('should POST with linked friend fields', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        person: { id: 'p2', name: 'Alice', relationshipTypeName: 'Friend', linkedFriendUserId: 'uid-1', linkedFriendName: 'Jane', linkedFriendEmail: 'jane@test.com' },
+      }));
+
+      const result = await client.createPerson({
+        name: 'Alice',
+        relationshipTypeId: 'rt1',
+        linkedFriendUserId: 'uid-1',
+        linkedFriendName: 'Jane',
+        linkedFriendEmail: 'jane@test.com',
+      });
+
+      expect(result.linkedFriendUserId).toBe('uid-1');
+      expect(result.linkedFriendName).toBe('Jane');
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.linkedFriendUserId).toBe('uid-1');
+    });
+  });
+
+  describe('updatePerson', () => {
+    it('should PATCH to link a friend', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        person: { id: 'p1', name: 'Bob', linkedFriendUserId: 'uid-2', linkedFriendName: 'Dave' },
+      }));
+
+      const result = await client.updatePerson('p1', {
+        linkedFriendUserId: 'uid-2',
+        linkedFriendName: 'Dave',
+        linkedFriendEmail: 'dave@test.com',
+      });
+
+      expect(result.linkedFriendUserId).toBe('uid-2');
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.linkedFriendUserId).toBe('uid-2');
+    });
+
+    it('should PATCH to unlink a friend with empty string', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        person: { id: 'p1', name: 'Bob' },
+      }));
+
+      await client.updatePerson('p1', {
+        linkedFriendUserId: '',
+      });
+
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.linkedFriendUserId).toBe('');
+    });
   });
 
   describe('addInteraction', () => {
