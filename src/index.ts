@@ -11,7 +11,7 @@ import 'dotenv/config';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { TrackfusionClient, UpdateTaskInput, UpdatePersonInput } from './client.js';
+import { TrackfusionClient, UpdateTaskInput, UpdatePersonInput, UpdateFoodInput, UpdateMealEntryInput } from './client.js';
 
 const API_KEY = process.env.TRACKFUSION_API_KEY;
 const BASE_URL = process.env.TRACKFUSION_API_URL || 'https://europe-west1-oz-track.cloudfunctions.net/api';
@@ -1104,6 +1104,262 @@ server.tool(
     try {
       await client.unshareProject(projectId, friendUserId);
       return text(`User ${friendUserId} removed from project.`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+// ============================================
+// DIET & NUTRITION
+// ============================================
+
+server.tool(
+  'list_food_definitions',
+  'List food definitions (system + custom). Optionally search by name or filter by category.',
+  {
+    search: z.string().optional().describe('Search foods by name or brand'),
+    category: z.string().optional().describe('Filter by category'),
+  },
+  async ({ search, category }) => {
+    try {
+      const foods = await client.listFoodDefinitions(search, category);
+      const formatted = foods.map((f) => {
+        const brand = f.brand ? ` (${f.brand})` : '';
+        const sys = f.isSystem ? ' [system]' : '';
+        return `**${f.name}**${brand}${sys} (${f.id})\n  Per ${f.servingSize}${f.servingUnit}: ${f.calories} kcal | P: ${f.protein}g | C: ${f.carbs}g | F: ${f.fat}g`;
+      });
+      return text(formatted.length > 0 ? formatted.join('\n\n') : 'No food definitions found.');
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'create_food_definition',
+  'Create a custom food definition with nutritional info per serving',
+  {
+    name: z.string().describe('Food name'),
+    brand: z.string().optional().describe('Brand name'),
+    servingSize: z.number().describe('Serving size amount'),
+    servingUnit: z.string().describe('Serving unit (g, ml, oz, cup, piece)'),
+    calories: z.number().describe('Calories per serving'),
+    protein: z.number().describe('Protein grams per serving'),
+    carbs: z.number().describe('Carbs grams per serving'),
+    fat: z.number().describe('Fat grams per serving'),
+    fiber: z.number().optional().describe('Fiber grams per serving'),
+    sugar: z.number().optional().describe('Sugar grams per serving'),
+    barcode: z.string().optional().describe('Barcode number'),
+    category: z.string().optional().describe('Food category'),
+  },
+  async (input) => {
+    try {
+      const food = await client.createFoodDefinition(input);
+      return text(`Food created: **${food.name}** (${food.id}) — ${food.calories} kcal per ${food.servingSize}${food.servingUnit}`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'update_food_definition',
+  'Update a custom food definition (cannot update system foods)',
+  {
+    foodId: z.string().describe('Food definition ID'),
+    name: z.string().optional().describe('New name'),
+    brand: z.string().optional().describe('New brand'),
+    servingSize: z.number().optional().describe('New serving size'),
+    servingUnit: z.string().optional().describe('New serving unit'),
+    calories: z.number().optional().describe('New calories'),
+    protein: z.number().optional().describe('New protein grams'),
+    carbs: z.number().optional().describe('New carbs grams'),
+    fat: z.number().optional().describe('New fat grams'),
+    fiber: z.number().optional().describe('New fiber grams'),
+    sugar: z.number().optional().describe('New sugar grams'),
+    category: z.string().optional().describe('New category'),
+  },
+  async ({ foodId, ...input }) => {
+    try {
+      const updates: UpdateFoodInput = {};
+      for (const [k, v] of Object.entries(input)) {
+        if (v !== undefined) (updates as any)[k] = v;
+      }
+      const food = await client.updateFoodDefinition(foodId, updates);
+      return text(`Food updated: **${food.name}** (${food.id})`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'delete_food_definition',
+  'Delete a custom food definition (cannot delete system foods)',
+  {
+    foodId: z.string().describe('Food definition ID'),
+  },
+  async ({ foodId }) => {
+    try {
+      await client.deleteFoodDefinition(foodId);
+      return text('Food definition deleted.');
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'list_meal_entries',
+  'List logged meal entries. Filter by date, date range, or meal type.',
+  {
+    date: z.string().optional().describe('Exact date (YYYY-MM-DD)'),
+    from: z.string().optional().describe('Start date (YYYY-MM-DD)'),
+    to: z.string().optional().describe('End date (YYYY-MM-DD)'),
+    mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snacks']).optional().describe('Filter by meal type'),
+    limit: z.number().optional().describe('Max entries to return (default 100)'),
+  },
+  async (opts) => {
+    try {
+      const entries = await client.listMealEntries(opts);
+      const formatted = entries.map((e) => {
+        const quick = e.isQuickAdd ? ' [quick-add]' : '';
+        return `**${e.foodName}**${quick} — ${e.mealType} on ${e.dateString}\n  ${e.servingCount}x | ${e.calories} kcal | P: ${e.protein}g | C: ${e.carbs}g | F: ${e.fat}g`;
+      });
+      return text(formatted.length > 0 ? formatted.join('\n\n') : 'No meal entries found.');
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'create_meal_entry',
+  'Log a meal entry. Can reference a food definition or be a quick-add with just calories.',
+  {
+    foodDefinitionId: z.string().optional().describe('Food definition ID (omit for quick-add)'),
+    foodName: z.string().describe('Food name (denormalized for history)'),
+    mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snacks']).describe('Meal type'),
+    servingCount: z.number().describe('Number of servings'),
+    calories: z.number().describe('Total calories'),
+    protein: z.number().optional().describe('Total protein grams'),
+    carbs: z.number().optional().describe('Total carbs grams'),
+    fat: z.number().optional().describe('Total fat grams'),
+    dateString: z.string().describe('Date (YYYY-MM-DD)'),
+    isQuickAdd: z.boolean().optional().describe('True if quick-add without food definition'),
+  },
+  async (input) => {
+    try {
+      const entry = await client.createMealEntry(input);
+      return text(`Meal logged: **${entry.foodName}** (${entry.mealType}) — ${entry.calories} kcal on ${entry.dateString}`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'update_meal_entry',
+  'Update an existing meal entry',
+  {
+    entryId: z.string().describe('Meal entry ID'),
+    foodName: z.string().optional().describe('New food name'),
+    mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snacks']).optional().describe('New meal type'),
+    servingCount: z.number().optional().describe('New serving count'),
+    calories: z.number().optional().describe('New calories'),
+    protein: z.number().optional().describe('New protein grams'),
+    carbs: z.number().optional().describe('New carbs grams'),
+    fat: z.number().optional().describe('New fat grams'),
+    dateString: z.string().optional().describe('New date (YYYY-MM-DD)'),
+  },
+  async ({ entryId, ...input }) => {
+    try {
+      const updates: UpdateMealEntryInput = {};
+      for (const [k, v] of Object.entries(input)) {
+        if (v !== undefined) (updates as any)[k] = v;
+      }
+      const entry = await client.updateMealEntry(entryId, updates);
+      return text(`Meal updated: **${entry.foodName}** — ${entry.calories} kcal`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'delete_meal_entry',
+  'Delete a meal entry',
+  {
+    entryId: z.string().describe('Meal entry ID'),
+  },
+  async ({ entryId }) => {
+    try {
+      await client.deleteMealEntry(entryId);
+      return text('Meal entry deleted.');
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'get_nutrition_goals',
+  'Get the user\'s daily nutrition goals (calories and macros)',
+  {},
+  async () => {
+    try {
+      const goals = await client.getNutritionGoals();
+      if (!goals) return text('No nutrition goals set yet.');
+      return text(`Daily Goals:\n  Calories: ${goals.dailyCalories} kcal\n  Protein: ${goals.proteinGrams}g\n  Carbs: ${goals.carbsGrams}g\n  Fat: ${goals.fatGrams}g`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'set_nutrition_goals',
+  'Set daily nutrition goals (calories and macro targets)',
+  {
+    dailyCalories: z.number().describe('Daily calorie target'),
+    proteinGrams: z.number().describe('Daily protein target in grams'),
+    carbsGrams: z.number().describe('Daily carbs target in grams'),
+    fatGrams: z.number().describe('Daily fat target in grams'),
+  },
+  async (input) => {
+    try {
+      const goals = await client.setNutritionGoals(input);
+      return text(`Nutrition goals updated:\n  Calories: ${goals.dailyCalories} kcal\n  Protein: ${goals.proteinGrams}g\n  Carbs: ${goals.carbsGrams}g\n  Fat: ${goals.fatGrams}g`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'get_diet_daily_summary',
+  'Get a daily diet summary with totals and meals grouped by type',
+  {
+    date: z.string().describe('Date to summarize (YYYY-MM-DD)'),
+  },
+  async ({ date }) => {
+    try {
+      const summary = await client.getDietDailySummary(date);
+      let result = `📊 Diet Summary for ${summary.date}\n`;
+      result += `  Total: ${summary.totals.calories} kcal | P: ${summary.totals.protein}g | C: ${summary.totals.carbs}g | F: ${summary.totals.fat}g\n`;
+      result += `  Entries: ${summary.entryCount}\n`;
+
+      for (const [mealType, entries] of Object.entries(summary.meals)) {
+        if ((entries as any[]).length > 0) {
+          result += `\n  🍽️ ${mealType.charAt(0).toUpperCase() + mealType.slice(1)}:\n`;
+          for (const e of entries as any[]) {
+            result += `    - ${e.foodName} (${e.servingCount}x) — ${e.calories} kcal\n`;
+          }
+        }
+      }
+
+      return text(result);
     } catch (err) {
       return errText(err);
     }

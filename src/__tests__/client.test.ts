@@ -886,4 +886,168 @@ describe('TrackfusionClient', () => {
       expect(JSON.parse(options.body)).toEqual({ action: 'remove', friendUserId: 'user-2' });
     });
   });
+
+  // ---------- Diet & Nutrition ----------
+
+  describe('listFoodDefinitions', () => {
+    it('should GET food definitions without filters', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ foods: [{ id: 'f1', name: 'Chicken Breast' }] }));
+
+      const foods = await client.listFoodDefinitions();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/food-definitions',
+        expect.anything()
+      );
+      expect(foods).toHaveLength(1);
+      expect(foods[0].name).toBe('Chicken Breast');
+    });
+
+    it('should pass search and category as query params', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ foods: [] }));
+
+      await client.listFoodDefinitions('chicken', 'protein');
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('search=chicken');
+      expect(url).toContain('category=protein');
+    });
+  });
+
+  describe('createFoodDefinition', () => {
+    it('should POST a new food definition', async () => {
+      const input = { name: 'Rice', servingSize: 100, servingUnit: 'g', calories: 130, protein: 2.7, carbs: 28, fat: 0.3 };
+      mockFetch.mockResolvedValue(jsonResponse({ food: { id: 'f2', ...input } }));
+
+      const food = await client.createFoodDefinition(input);
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/food-definitions');
+      expect(options.method).toBe('POST');
+      expect(food.name).toBe('Rice');
+    });
+  });
+
+  describe('updateFoodDefinition', () => {
+    it('should PATCH a food definition', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ food: { id: 'f1', name: 'Updated' } }));
+
+      await client.updateFoodDefinition('f1', { name: 'Updated' });
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/food-definitions/f1');
+      expect(options.method).toBe('PATCH');
+    });
+  });
+
+  describe('deleteFoodDefinition', () => {
+    it('should DELETE a food definition', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ success: true }));
+
+      await client.deleteFoodDefinition('f1');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/food-definitions/f1');
+      expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('listMealEntries', () => {
+    it('should GET meal entries with date filter', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ entries: [{ id: 'm1', foodName: 'Oatmeal' }] }));
+
+      const entries = await client.listMealEntries({ date: '2026-03-08' });
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('date=2026-03-08');
+      expect(entries).toHaveLength(1);
+    });
+  });
+
+  describe('createMealEntry', () => {
+    it('should POST a meal entry', async () => {
+      const input = { foodName: 'Oatmeal', mealType: 'breakfast' as const, servingCount: 1, calories: 150, dateString: '2026-03-08' };
+      mockFetch.mockResolvedValue(jsonResponse({ entry: { id: 'm1', ...input } }));
+
+      const entry = await client.createMealEntry(input);
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/meal-entries');
+      expect(options.method).toBe('POST');
+      expect(entry.foodName).toBe('Oatmeal');
+    });
+  });
+
+  describe('updateMealEntry', () => {
+    it('should PATCH a meal entry', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ entry: { id: 'm1', foodName: 'Updated', calories: 200 } }));
+
+      await client.updateMealEntry('m1', { calories: 200 });
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/meal-entries/m1');
+      expect(options.method).toBe('PATCH');
+    });
+  });
+
+  describe('deleteMealEntry', () => {
+    it('should DELETE a meal entry', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ success: true }));
+
+      await client.deleteMealEntry('m1');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/meal-entries/m1');
+      expect(options.method).toBe('DELETE');
+    });
+  });
+
+  describe('getNutritionGoals', () => {
+    it('should GET nutrition goals', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ goals: { dailyCalories: 2000, proteinGrams: 150 } }));
+
+      const goals = await client.getNutritionGoals();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/nutrition-goals',
+        expect.anything()
+      );
+      expect(goals?.dailyCalories).toBe(2000);
+    });
+
+    it('should return null when no goals set', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ goals: null }));
+
+      const goals = await client.getNutritionGoals();
+
+      expect(goals).toBeNull();
+    });
+  });
+
+  describe('setNutritionGoals', () => {
+    it('should PUT nutrition goals', async () => {
+      const input = { dailyCalories: 2200, proteinGrams: 170, carbsGrams: 250, fatGrams: 70 };
+      mockFetch.mockResolvedValue(jsonResponse({ goals: input }));
+
+      const goals = await client.setNutritionGoals(input);
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/nutrition-goals');
+      expect(options.method).toBe('PUT');
+      expect(goals.dailyCalories).toBe(2200);
+    });
+  });
+
+  describe('getDietDailySummary', () => {
+    it('should GET daily diet summary', async () => {
+      const summary = { date: '2026-03-08', totals: { calories: 1800, protein: 120, carbs: 200, fat: 60 }, meals: {}, entryCount: 5 };
+      mockFetch.mockResolvedValue(jsonResponse(summary));
+
+      const result = await client.getDietDailySummary('2026-03-08');
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('date=2026-03-08');
+      expect(result.totals.calories).toBe(1800);
+    });
+  });
 });

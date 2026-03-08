@@ -558,6 +558,126 @@ export interface PortfolioSummary {
 }
 
 // ============================================
+// DIET & NUTRITION
+// ============================================
+
+export interface FoodDefinition {
+  id: string;
+  userId: string | null;
+  name: string;
+  nameNormalized: string;
+  brand?: string;
+  servingSize: number;
+  servingUnit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  sugar?: number;
+  barcode?: string;
+  category?: string;
+  isSystem: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateFoodInput {
+  name: string;
+  brand?: string;
+  servingSize: number;
+  servingUnit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  sugar?: number;
+  barcode?: string;
+  category?: string;
+}
+
+export interface UpdateFoodInput {
+  name?: string;
+  brand?: string;
+  servingSize?: number;
+  servingUnit?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
+  sugar?: number;
+  barcode?: string;
+  category?: string;
+}
+
+export interface MealEntry {
+  id: string;
+  userId: string;
+  foodDefinitionId?: string;
+  foodName: string;
+  mealType: string;
+  servingCount: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  dateString: string;
+  isQuickAdd: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateMealEntryInput {
+  foodDefinitionId?: string;
+  foodName: string;
+  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
+  servingCount: number;
+  calories: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  dateString: string;
+  isQuickAdd?: boolean;
+}
+
+export interface UpdateMealEntryInput {
+  foodDefinitionId?: string;
+  foodName?: string;
+  mealType?: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
+  servingCount?: number;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  dateString?: string;
+  isQuickAdd?: boolean;
+}
+
+export interface NutritionGoals {
+  id: string;
+  userId: string;
+  dailyCalories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  updatedAt?: string;
+}
+
+export interface DailySummary {
+  date: string;
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+  meals: Record<string, MealEntry[]>;
+  entryCount: number;
+}
+
+// ============================================
 // FRIENDS
 // ============================================
 
@@ -994,5 +1114,76 @@ export class TrackfusionClient {
       method: 'PATCH',
       body: JSON.stringify({ action: 'remove', friendUserId }),
     });
+  }
+
+  // ---------- Diet & Nutrition ----------
+
+  async listFoodDefinitions(search?: string, category?: string): Promise<FoodDefinition[]> {
+    const qs = this.buildQs({ search, category });
+    const data = await this.request<{ foods: FoodDefinition[] }>(`/food-definitions${qs}`);
+    return data.foods;
+  }
+
+  async createFoodDefinition(input: CreateFoodInput): Promise<FoodDefinition> {
+    const data = await this.request<{ food: FoodDefinition }>('/food-definitions', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return data.food;
+  }
+
+  async updateFoodDefinition(id: string, input: UpdateFoodInput): Promise<FoodDefinition> {
+    const data = await this.request<{ food: FoodDefinition }>(`/food-definitions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+    return data.food;
+  }
+
+  async deleteFoodDefinition(id: string): Promise<void> {
+    await this.request(`/food-definitions/${id}`, { method: 'DELETE' });
+  }
+
+  async listMealEntries(opts?: { date?: string; from?: string; to?: string; mealType?: string; limit?: number }): Promise<MealEntry[]> {
+    const qs = this.buildQs(opts || {});
+    const data = await this.request<{ entries: MealEntry[] }>(`/meal-entries${qs}`);
+    return data.entries;
+  }
+
+  async createMealEntry(input: CreateMealEntryInput): Promise<MealEntry> {
+    const data = await this.request<{ entry: MealEntry }>('/meal-entries', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return data.entry;
+  }
+
+  async updateMealEntry(id: string, input: UpdateMealEntryInput): Promise<MealEntry> {
+    const data = await this.request<{ entry: MealEntry }>(`/meal-entries/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+    return data.entry;
+  }
+
+  async deleteMealEntry(id: string): Promise<void> {
+    await this.request(`/meal-entries/${id}`, { method: 'DELETE' });
+  }
+
+  async getNutritionGoals(): Promise<NutritionGoals | null> {
+    const data = await this.request<{ goals: NutritionGoals | null }>('/nutrition-goals');
+    return data.goals;
+  }
+
+  async setNutritionGoals(input: { dailyCalories: number; proteinGrams: number; carbsGrams: number; fatGrams: number }): Promise<NutritionGoals> {
+    const data = await this.request<{ goals: NutritionGoals }>('/nutrition-goals', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+    return data.goals;
+  }
+
+  async getDietDailySummary(date: string): Promise<DailySummary> {
+    return this.request<DailySummary>(`/diet-daily-summary?date=${encodeURIComponent(date)}`);
   }
 }
