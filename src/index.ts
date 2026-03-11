@@ -11,7 +11,7 @@ import 'dotenv/config';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { TrackfusionClient, UpdateTaskInput, UpdatePersonInput, UpdateFoodInput, UpdateMealEntryInput } from './client.js';
+import { TrackfusionClient, UpdateTaskInput, UpdatePersonInput, UpdateFoodInput, UpdateMealEntryInput, SetDietProfileInput, CreateMealTemplateInput, UpdateMealTemplateInput, MealTemplateItem } from './client.js';
 
 const API_KEY = process.env.TRACKFUSION_API_KEY;
 const BASE_URL = process.env.TRACKFUSION_API_URL || 'https://europe-west1-oz-track.cloudfunctions.net/api';
@@ -1178,6 +1178,7 @@ server.tool(
     fat: z.number().optional().describe('New fat grams'),
     fiber: z.number().optional().describe('New fiber grams'),
     sugar: z.number().optional().describe('New sugar grams'),
+    barcode: z.string().optional().describe('New barcode'),
     category: z.string().optional().describe('New category'),
   },
   async ({ foodId, ...input }) => {
@@ -1248,6 +1249,8 @@ server.tool(
     fat: z.number().optional().describe('Total fat grams'),
     dateString: z.string().describe('Date (YYYY-MM-DD)'),
     isQuickAdd: z.boolean().optional().describe('True if quick-add without food definition'),
+    notes: z.string().optional().describe('Optional notes about the meal'),
+    photoUrl: z.string().optional().describe('Optional photo URL'),
   },
   async (input) => {
     try {
@@ -1272,6 +1275,10 @@ server.tool(
     carbs: z.number().optional().describe('New carbs grams'),
     fat: z.number().optional().describe('New fat grams'),
     dateString: z.string().optional().describe('New date (YYYY-MM-DD)'),
+    foodDefinitionId: z.string().optional().describe('New food definition ID'),
+    isQuickAdd: z.boolean().optional().describe('Whether this is a quick-add entry'),
+    notes: z.string().optional().describe('Optional notes about the meal'),
+    photoUrl: z.string().optional().describe('Optional photo URL'),
   },
   async ({ entryId, ...input }) => {
     try {
@@ -1348,6 +1355,9 @@ server.tool(
       const summary = await client.getDietDailySummary(date);
       let result = `📊 Diet Summary for ${summary.date}\n`;
       result += `  Total: ${summary.totals.calories} kcal | P: ${summary.totals.protein}g | C: ${summary.totals.carbs}g | F: ${summary.totals.fat}g\n`;
+      if (summary.totals.fiber || summary.totals.sugar || summary.totals.sodium) {
+        result += `  Micros: Fiber ${summary.totals.fiber}g | Sugar ${summary.totals.sugar}g | Sodium ${summary.totals.sodium}mg\n`;
+      }
       result += `  Entries: ${summary.entryCount}\n`;
 
       for (const [mealType, entries] of Object.entries(summary.meals)) {
@@ -1360,6 +1370,292 @@ server.tool(
       }
 
       return text(result);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'search_foods',
+  'Search external food databases (Open Food Facts + USDA) for nutrition data',
+  {
+    query: z.string().describe('Search query (e.g., "chicken breast", "coca cola")'),
+    source: z.enum(['off', 'usda']).optional().describe('Limit to a specific source (default: OFF)'),
+    page: z.number().optional().describe('Page number for pagination (default: 1)'),
+  },
+  async ({ query, source, page }) => {
+    try {
+      const result = await client.searchFoods(query, source, page);
+      const foods = result.foods as any[];
+      if (foods.length === 0) return text('No foods found for that query.');
+
+      let output = `Found ${foods.length} results from ${result.source.toUpperCase()}:\n\n`;
+      for (const f of foods.slice(0, 10)) {
+        const name = f.product_name || f.description || 'Unknown';
+        const brand = f.brands || f.brandName || '';
+        const cal = f.nutriments?.['energy-kcal_100g'] || '?';
+        output += `- **${name}**${brand ? ` (${brand})` : ''} — ${cal} kcal/100g\n`;
+      }
+      if (foods.length > 10) output += `\n...and ${foods.length - 10} more results.`;
+
+      return text(output);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'lookup_barcode',
+  'Look up a product by barcode via Open Food Facts',
+  {
+    barcode: z.string().describe('Product barcode (EAN/UPC, 8-14 digits)'),
+  },
+  async ({ barcode }) => {
+    try {
+      const result = await client.lookupBarcode(barcode);
+      if (!result.product) return text(`No product found for barcode ${barcode}.`);
+
+      const p = result.product as any;
+      const n = p.nutriments || {};
+      let output = `**${p.product_name || 'Unknown'}**`;
+      if (p.brands) output += ` (${p.brands})`;
+      output += `\nBarcode: ${barcode}`;
+      if (p.nutriscore_grade) output += ` | Nutri-Score: ${p.nutriscore_grade.toUpperCase()}`;
+      output += `\n\nPer 100g:`;
+      output += `\n  Calories: ${n['energy-kcal_100g'] ?? '?'} kcal`;
+      output += `\n  Protein: ${n.proteins_100g ?? '?'}g`;
+      output += `\n  Carbs: ${n.carbohydrates_100g ?? '?'}g`;
+      output += `\n  Fat: ${n.fat_100g ?? '?'}g`;
+      if (n.fiber_100g !== undefined) output += `\n  Fiber: ${n.fiber_100g}g`;
+      if (n.sugars_100g !== undefined) output += `\n  Sugar: ${n.sugars_100g}g`;
+
+      return text(output);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'get_diet_profile',
+  'Get user diet profile (TDEE calculation inputs: sex, DOB, height, activity, goal, macro preset)',
+  {},
+  async () => {
+    try {
+      const { profile } = await client.getDietProfile();
+      if (!profile) return text('No diet profile set up yet. Use set_diet_profile to create one.');
+
+      let output = '**Diet Profile**\n';
+      output += `Sex: ${profile.sex}\n`;
+      output += `Date of Birth: ${profile.dateOfBirth}\n`;
+      output += `Height: ${profile.heightCm} cm\n`;
+      output += `Activity Level: ${profile.activityLevel}\n`;
+      output += `Weight Goal: ${profile.weightGoal}\n`;
+      output += `Macro Preset: ${profile.macroPreset}\n`;
+      if (profile.bmr) output += `BMR: ${profile.bmr} kcal\n`;
+      if (profile.tdee) output += `TDEE: ${profile.tdee} kcal\n`;
+      if (profile.customMacros) {
+        output += `Custom Macros: ${profile.customMacros.proteinPct}% protein, ${profile.customMacros.carbsPct}% carbs, ${profile.customMacros.fatPct}% fat\n`;
+      }
+      if (profile.updatedAt) output += `\nLast updated: ${profile.updatedAt}`;
+
+      return text(output);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'set_diet_profile',
+  'Set/update user diet profile for TDEE calculation and goal setup',
+  {
+    sex: z.enum(['male', 'female']).describe('Biological sex for BMR calculation'),
+    dateOfBirth: z.string().describe('Date of birth (YYYY-MM-DD)'),
+    heightCm: z.number().positive().describe('Height in centimeters'),
+    activityLevel: z.enum(['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active']).describe('Activity level'),
+    weightGoal: z.enum(['lose_fast', 'lose', 'maintain', 'gain', 'gain_fast']).describe('Weight goal'),
+    macroPreset: z.enum(['balanced', 'high_protein', 'low_carb', 'low_fat', 'custom']).describe('Macro split preset'),
+    customMacros: z.object({
+      proteinPct: z.number(),
+      carbsPct: z.number(),
+      fatPct: z.number(),
+    }).optional().describe('Custom macro percentages (required if macroPreset is "custom")'),
+    bmr: z.number().optional().describe('Calculated BMR (kcal)'),
+    tdee: z.number().optional().describe('Calculated TDEE (kcal)'),
+  },
+  async (input) => {
+    try {
+      const { profile } = await client.setDietProfile(input);
+      return text(`Diet profile updated successfully.\nActivity: ${profile.activityLevel} | Goal: ${profile.weightGoal} | Preset: ${profile.macroPreset}`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+// ============================================
+// MEAL TEMPLATES
+// ============================================
+
+const mealTemplateItemSchema = z.object({
+  foodDefinitionId: z.string().describe('Food definition ID'),
+  foodName: z.string().describe('Food name'),
+  servingCount: z.number().positive().describe('Number of servings'),
+  calories: z.number().min(0).describe('Calories'),
+  protein: z.number().min(0).describe('Protein in grams'),
+  carbs: z.number().min(0).describe('Carbs in grams'),
+  fat: z.number().min(0).describe('Fat in grams'),
+});
+
+server.tool(
+  'list_meal_templates',
+  'List all saved meal templates (reusable food combinations)',
+  {},
+  async () => {
+    try {
+      const { templates } = await client.listMealTemplates();
+      if (templates.length === 0) return text('No meal templates yet. Create one with create_meal_template.');
+
+      const lines = templates.map((t) => {
+        const items = t.items.map((i) => `  - ${i.foodName} (×${i.servingCount})`).join('\n');
+        return `**${t.name}** (${t.totalCalories} kcal | P:${t.totalProtein}g C:${t.totalCarbs}g F:${t.totalFat}g)\n${items}`;
+      });
+      return text(lines.join('\n\n'));
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'create_meal_template',
+  'Create a reusable meal template from a list of foods',
+  {
+    name: z.string().describe('Template name (e.g., "Morning Oatmeal", "Post-Workout Shake")'),
+    items: z.array(mealTemplateItemSchema).min(1).describe('Food items in the template'),
+  },
+  async ({ name, items }) => {
+    try {
+      const { template } = await client.createMealTemplate({ name, items });
+      return text(`Created template "${template.name}" with ${template.items.length} items (${template.totalCalories} kcal total).`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'update_meal_template',
+  'Update a meal template name or items',
+  {
+    id: z.string().describe('Template ID'),
+    name: z.string().optional().describe('New template name'),
+    items: z.array(mealTemplateItemSchema).min(1).optional().describe('Updated food items'),
+  },
+  async ({ id, name, items }) => {
+    try {
+      const input: UpdateMealTemplateInput = {};
+      if (name) input.name = name;
+      if (items) input.items = items;
+      const { template } = await client.updateMealTemplate(id, input);
+      return text(`Updated template "${template.name}" (${template.totalCalories} kcal).`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'delete_meal_template',
+  'Delete a meal template',
+  {
+    id: z.string().describe('Template ID'),
+  },
+  async ({ id }) => {
+    try {
+      await client.deleteMealTemplate(id);
+      return text('Meal template deleted.');
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'log_meal_template',
+  'Log all items from a meal template as meal entries for a specific date and meal',
+  {
+    id: z.string().describe('Template ID'),
+    dateString: z.string().describe('Date to log (YYYY-MM-DD)'),
+    mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snacks']).describe('Meal type'),
+  },
+  async ({ id, dateString, mealType }) => {
+    try {
+      const result = await client.logMealTemplate(id, dateString, mealType);
+      return text(`Logged ${result.count} items from template to ${mealType} on ${dateString}.`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+// ============================================
+// WATER INTAKE
+// ============================================
+
+server.tool(
+  'get_water_intake',
+  'Get water intake for a specific date',
+  {
+    date: z.string().describe('Date (YYYY-MM-DD)'),
+  },
+  async ({ date }) => {
+    try {
+      const intake = await client.getWaterIntake(date);
+      const lines = [
+        `Water Intake for ${date}:`,
+        `  Amount: ${intake.amountMl}ml (${(intake.amountMl / 1000).toFixed(1)}L)`,
+        `  Glasses: ${intake.glasses}`,
+      ];
+      return text(lines.join('\n'));
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'add_water',
+  'Add a glass of water for a specific date (default 250ml)',
+  {
+    dateString: z.string().describe('Date (YYYY-MM-DD)'),
+    amountMl: z.number().optional().describe('Amount in ml (default 250)'),
+  },
+  async ({ dateString, amountMl }) => {
+    try {
+      const result = await client.addWater(dateString, amountMl);
+      return text(`Added water. Total: ${result.amountMl}ml (${result.glasses} glasses) for ${dateString}.`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'set_water_intake',
+  'Set water intake to a specific amount for a date',
+  {
+    dateString: z.string().describe('Date (YYYY-MM-DD)'),
+    amountMl: z.number().describe('Total amount in ml'),
+    glasses: z.number().describe('Total number of glasses'),
+  },
+  async ({ dateString, amountMl, glasses }) => {
+    try {
+      await client.setWaterIntake({ dateString, amountMl, glasses });
+      return text(`Water intake set to ${amountMl}ml (${glasses} glasses) for ${dateString}.`);
     } catch (err) {
       return errText(err);
     }

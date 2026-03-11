@@ -625,6 +625,8 @@ export interface MealEntry {
   fat: number;
   dateString: string;
   isQuickAdd: boolean;
+  notes?: string;
+  photoUrl?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -640,6 +642,8 @@ export interface CreateMealEntryInput {
   fat?: number;
   dateString: string;
   isQuickAdd?: boolean;
+  notes?: string;
+  photoUrl?: string;
 }
 
 export interface UpdateMealEntryInput {
@@ -653,6 +657,8 @@ export interface UpdateMealEntryInput {
   fat?: number;
   dateString?: string;
   isQuickAdd?: boolean;
+  notes?: string;
+  photoUrl?: string;
 }
 
 export interface NutritionGoals {
@@ -672,9 +678,85 @@ export interface DailySummary {
     protein: number;
     carbs: number;
     fat: number;
+    fiber: number;
+    sugar: number;
+    sodium: number;
   };
   meals: Record<string, MealEntry[]>;
   entryCount: number;
+}
+
+export interface WaterIntake {
+  userId?: string;
+  dateString: string;
+  amountMl: number;
+  glasses: number;
+  updatedAt?: string;
+}
+
+export interface SetWaterIntakeInput {
+  dateString: string;
+  amountMl: number;
+  glasses: number;
+}
+
+export interface MealTemplateItem {
+  foodDefinitionId: string;
+  foodName: string;
+  servingCount: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface MealTemplate {
+  id: string;
+  name: string;
+  items: MealTemplateItem[];
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMealTemplateInput {
+  name: string;
+  items: MealTemplateItem[];
+}
+
+export interface UpdateMealTemplateInput {
+  name?: string;
+  items?: MealTemplateItem[];
+}
+
+export interface DietProfile {
+  id: string;
+  userId: string;
+  sex: 'male' | 'female';
+  dateOfBirth: string;
+  heightCm: number;
+  activityLevel: string;
+  weightGoal: string;
+  macroPreset: string;
+  customMacros?: { proteinPct: number; carbsPct: number; fatPct: number };
+  bmr?: number;
+  tdee?: number;
+  updatedAt?: string;
+}
+
+export interface SetDietProfileInput {
+  sex: 'male' | 'female';
+  dateOfBirth: string;
+  heightCm: number;
+  activityLevel: string;
+  weightGoal: string;
+  macroPreset: string;
+  customMacros?: { proteinPct: number; carbsPct: number; fatPct: number };
+  bmr?: number;
+  tdee?: number;
 }
 
 // ============================================
@@ -1183,7 +1265,73 @@ export class TrackfusionClient {
     return data.goals;
   }
 
+  async getDietProfile(): Promise<{ profile: DietProfile | null }> {
+    return this.request('/diet-profile');
+  }
+
+  async setDietProfile(data: SetDietProfileInput): Promise<{ profile: DietProfile }> {
+    return this.request('/diet-profile', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
   async getDietDailySummary(date: string): Promise<DailySummary> {
     return this.request<DailySummary>(`/diet-daily-summary?date=${encodeURIComponent(date)}`);
+  }
+
+  // Food Search (External APIs)
+  async searchFoods(query: string, source?: 'off' | 'usda', page?: number): Promise<{ foods: unknown[]; source: string }> {
+    const params = new URLSearchParams({ q: query });
+    if (source) params.set('source', source);
+    if (page) params.set('page', String(page));
+    return this.request(`/food-search?${params.toString()}`);
+  }
+
+  async lookupBarcode(barcode: string): Promise<{ product: unknown | null; source?: string }> {
+    return this.request(`/food-barcode/${encodeURIComponent(barcode)}`);
+  }
+
+  // Meal Templates
+  async listMealTemplates(): Promise<{ templates: MealTemplate[] }> {
+    return this.request('/meal-templates');
+  }
+
+  async createMealTemplate(input: CreateMealTemplateInput): Promise<{ template: MealTemplate }> {
+    return this.request('/meal-templates', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateMealTemplate(id: string, input: UpdateMealTemplateInput): Promise<{ template: MealTemplate }> {
+    return this.request(`/meal-templates/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) });
+  }
+
+  async deleteMealTemplate(id: string): Promise<{ success: boolean }> {
+    return this.request(`/meal-templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  async logMealTemplate(id: string, dateString: string, mealType: string): Promise<{ entries: MealEntry[]; count: number }> {
+    return this.request(`/meal-templates/${encodeURIComponent(id)}/log`, {
+      method: 'POST',
+      body: JSON.stringify({ dateString, mealType }),
+    });
+  }
+
+  // ============================================
+  // WATER INTAKE
+  // ============================================
+
+  async getWaterIntake(date: string): Promise<WaterIntake> {
+    return this.request(`/water-intake?date=${encodeURIComponent(date)}`);
+  }
+
+  async setWaterIntake(data: SetWaterIntakeInput): Promise<WaterIntake> {
+    return this.request('/water-intake', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addWater(dateString: string, amountMl: number = 250): Promise<WaterIntake> {
+    return this.request('/water-intake/add', {
+      method: 'POST',
+      body: JSON.stringify({ dateString, amountMl }),
+    });
   }
 }
