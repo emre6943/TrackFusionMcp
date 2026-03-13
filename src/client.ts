@@ -577,6 +577,8 @@ export interface FoodDefinition {
   sugar?: number;
   barcode?: string;
   category?: string;
+  householdServingName?: string;
+  householdServingGrams?: number;
   isSystem: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -595,6 +597,8 @@ export interface CreateFoodInput {
   sugar?: number;
   barcode?: string;
   category?: string;
+  householdServingName?: string;
+  householdServingGrams?: number;
 }
 
 export interface UpdateFoodInput {
@@ -610,6 +614,8 @@ export interface UpdateFoodInput {
   sugar?: number;
   barcode?: string;
   category?: string;
+  householdServingName?: string;
+  householdServingGrams?: number;
 }
 
 export interface MealEntry {
@@ -627,6 +633,8 @@ export interface MealEntry {
   isQuickAdd: boolean;
   notes?: string;
   photoUrl?: string;
+  householdServingCount?: number;
+  householdServingName?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -644,6 +652,8 @@ export interface CreateMealEntryInput {
   isQuickAdd?: boolean;
   notes?: string;
   photoUrl?: string;
+  householdServingCount?: number;
+  householdServingName?: string;
 }
 
 export interface UpdateMealEntryInput {
@@ -659,6 +669,8 @@ export interface UpdateMealEntryInput {
   isQuickAdd?: boolean;
   notes?: string;
   photoUrl?: string;
+  householdServingCount?: number;
+  householdServingName?: string;
 }
 
 export interface NutritionGoals {

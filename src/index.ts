@@ -1127,7 +1127,8 @@ server.tool(
       const formatted = foods.map((f) => {
         const brand = f.brand ? ` (${f.brand})` : '';
         const sys = f.isSystem ? ' [system]' : '';
-        return `**${f.name}**${brand}${sys} (${f.id})\n  Per ${f.servingSize}${f.servingUnit}: ${f.calories} kcal | P: ${f.protein}g | C: ${f.carbs}g | F: ${f.fat}g`;
+        const household = f.householdServingName && f.householdServingGrams ? ` (1 ${f.householdServingName} = ${f.householdServingGrams}g)` : '';
+        return `**${f.name}**${brand}${sys} (${f.id})\n  Per ${f.servingSize}${f.servingUnit}: ${f.calories} kcal | P: ${f.protein}g | C: ${f.carbs}g | F: ${f.fat}g${household}`;
       });
       return text(formatted.length > 0 ? formatted.join('\n\n') : 'No food definitions found.');
     } catch (err) {
@@ -1152,6 +1153,8 @@ server.tool(
     sugar: z.number().optional().describe('Sugar grams per serving'),
     barcode: z.string().optional().describe('Barcode number'),
     category: z.string().optional().describe('Food category'),
+    householdServingName: z.string().optional().describe('Household serving name (e.g., "egg", "slice", "scoop")'),
+    householdServingGrams: z.number().optional().describe('Grams per one household serving unit'),
   },
   async (input) => {
     try {
@@ -1180,6 +1183,8 @@ server.tool(
     sugar: z.number().optional().describe('New sugar grams'),
     barcode: z.string().optional().describe('New barcode'),
     category: z.string().optional().describe('New category'),
+    householdServingName: z.string().optional().describe('Household serving name'),
+    householdServingGrams: z.number().optional().describe('Grams per household serving'),
   },
   async ({ foodId, ...input }) => {
     try {
@@ -1226,7 +1231,10 @@ server.tool(
       const entries = await client.listMealEntries(opts);
       const formatted = entries.map((e) => {
         const quick = e.isQuickAdd ? ' [quick-add]' : '';
-        return `**${e.foodName}**${quick} — ${e.mealType} on ${e.dateString}\n  ${e.servingCount}x | ${e.calories} kcal | P: ${e.protein}g | C: ${e.carbs}g | F: ${e.fat}g`;
+        const serving = e.householdServingCount != null && e.householdServingName
+          ? `${e.householdServingCount} ${e.householdServingName} (${Math.round(e.servingCount * 100)}g)`
+          : `${e.servingCount}x`;
+        return `**${e.foodName}**${quick} — ${e.mealType} on ${e.dateString}\n  ${serving} | ${e.calories} kcal | P: ${e.protein}g | C: ${e.carbs}g | F: ${e.fat}g`;
       });
       return text(formatted.length > 0 ? formatted.join('\n\n') : 'No meal entries found.');
     } catch (err) {
@@ -1251,6 +1259,8 @@ server.tool(
     isQuickAdd: z.boolean().optional().describe('True if quick-add without food definition'),
     notes: z.string().optional().describe('Optional notes about the meal'),
     photoUrl: z.string().optional().describe('Optional photo URL'),
+    householdServingCount: z.number().optional().describe('Household serving count (e.g., 2 for "2 eggs")'),
+    householdServingName: z.string().optional().describe('Household serving name for display (e.g., "eggs")'),
   },
   async (input) => {
     try {
@@ -1279,6 +1289,8 @@ server.tool(
     isQuickAdd: z.boolean().optional().describe('Whether this is a quick-add entry'),
     notes: z.string().optional().describe('Optional notes about the meal'),
     photoUrl: z.string().optional().describe('Optional photo URL'),
+    householdServingCount: z.number().optional().describe('Household serving count'),
+    householdServingName: z.string().optional().describe('Household serving name'),
   },
   async ({ entryId, ...input }) => {
     try {
