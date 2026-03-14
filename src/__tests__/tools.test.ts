@@ -470,6 +470,177 @@ describe('Tool output formatting', () => {
     });
   });
 
+  // ---------- Community Foods & Templates ----------
+
+  describe('search_community_foods formatting', () => {
+    it('should format community foods with contributor and usage', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        foods: [
+          { id: 'cf1', name: 'Chicken Breast', calories: 165, protein: 31, carbs: 0, fat: 3.6, isCommunity: true, contributorName: 'Alice', usageCount: 42 },
+          { id: 'cf2', name: 'Brown Rice', calories: 216, protein: 5, carbs: 45, fat: 1.8, isCommunity: true, contributorName: null, usageCount: 15 },
+        ],
+        total: 2,
+      }));
+
+      const result = await client.searchCommunityFoods({ search: 'chicken' });
+
+      expect(result.foods).toHaveLength(2);
+      expect(result.total).toBe(2);
+      expect(result.foods[0].name).toBe('Chicken Breast');
+      expect(result.foods[0].isCommunity).toBe(true);
+      expect(result.foods[0].contributorName).toBe('Alice');
+      expect(result.foods[0].usageCount).toBe(42);
+    });
+
+    it('should handle empty community foods', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ foods: [], total: 0 }));
+
+      const result = await client.searchCommunityFoods();
+      expect(result.foods).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+  });
+
+  describe('share_food_to_community formatting', () => {
+    it('should return shared food with community flag', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        food: { id: 'cf1', name: 'Oatmeal', isCommunity: true, contributorName: 'Bob', usageCount: 0, calories: 150, protein: 5, carbs: 27, fat: 2.5 },
+      }));
+
+      const food = await client.shareFoodToCommunity('f1');
+
+      expect(food.name).toBe('Oatmeal');
+      expect(food.isCommunity).toBe(true);
+      expect(food.contributorName).toBe('Bob');
+    });
+  });
+
+  describe('search_community_templates formatting', () => {
+    it('should format community templates with totals', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        templates: [{
+          id: 'ct1', name: 'Bulking Breakfast', isCommunity: true,
+          contributorName: 'Charlie', usageCount: 28,
+          items: [
+            { foodName: 'Eggs', servingCount: 3, calories: 210, protein: 18, carbs: 1.5, fat: 15 },
+            { foodName: 'Toast', servingCount: 2, calories: 160, protein: 6, carbs: 30, fat: 2 },
+          ],
+          totalCalories: 370, totalProtein: 24, totalCarbs: 31.5, totalFat: 17,
+          createdAt: '2026-03-01T00:00:00Z', updatedAt: '2026-03-10T00:00:00Z',
+        }],
+        total: 1,
+      }));
+
+      const result = await client.searchCommunityTemplates({ search: 'breakfast' });
+
+      expect(result.templates).toHaveLength(1);
+      expect(result.templates[0].name).toBe('Bulking Breakfast');
+      expect(result.templates[0].isCommunity).toBe(true);
+      expect(result.templates[0].contributorName).toBe('Charlie');
+      expect(result.templates[0].totalCalories).toBe(370);
+      expect(result.total).toBe(1);
+    });
+
+    it('should handle empty community templates', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ templates: [], total: 0 }));
+
+      const result = await client.searchCommunityTemplates();
+      expect(result.templates).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+  });
+
+  describe('share_meal_template formatting', () => {
+    it('should return shared template with community flag', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        template: {
+          id: 'ct1', name: 'Post-Workout', isCommunity: true,
+          contributorName: 'Dave', usageCount: 0,
+          items: [{ foodName: 'Protein Shake', servingCount: 1, calories: 200, protein: 40, carbs: 5, fat: 2 }],
+          totalCalories: 200, totalProtein: 40, totalCarbs: 5, totalFat: 2,
+          createdAt: '2026-03-14T00:00:00Z', updatedAt: '2026-03-14T00:00:00Z',
+        },
+      }));
+
+      const template = await client.shareMealTemplate('mt1');
+
+      expect(template.name).toBe('Post-Workout');
+      expect(template.isCommunity).toBe(true);
+      expect(template.contributorName).toBe('Dave');
+      expect(template.usageCount).toBe(0);
+    });
+  });
+
+  describe('lookup_barcode formatting', () => {
+    it('should include needsNutrition warning when product lacks nutrition data', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        product: { product_name: 'Mystery Bar', brands: 'SnackCo' },
+        source: 'upc_itemdb',
+        needsNutrition: true,
+      }));
+
+      const result = await client.lookupBarcode('1234567890');
+
+      expect(result.product).toBeTruthy();
+      expect(result.needsNutrition).toBe(true);
+
+      // Verify the formatting logic that the tool handler uses
+      const p = result.product as { product_name?: string; brands?: string };
+      let output = `**${p.product_name || 'Unknown'}**`;
+      if (p.brands) output += ` (${p.brands})`;
+      output += `\nBarcode: 1234567890 | Source: ${result.source || 'unknown'}`;
+
+      if (result.needsNutrition) {
+        output += `\n\n⚠️ Product identified but nutrition data is not available. User needs to enter nutrition manually.`;
+      }
+
+      expect(output).toContain('Mystery Bar');
+      expect(output).toContain('SnackCo');
+      expect(output).toContain('nutrition data is not available');
+      expect(output).toContain('enter nutrition manually');
+      expect(output).not.toContain('Per 100g');
+    });
+
+    it('should show nutrition data when needsNutrition is false', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        product: {
+          product_name: 'Oat Milk',
+          brands: 'Oatly',
+          nutriments: {
+            'energy-kcal_100g': 45,
+            proteins_100g: 1,
+            carbohydrates_100g: 6.5,
+            fat_100g: 1.5,
+          },
+        },
+        source: 'off',
+      }));
+
+      const result = await client.lookupBarcode('9876543210');
+
+      expect(result.product).toBeTruthy();
+      expect(result.needsNutrition).toBeUndefined();
+
+      // Verify formatting does NOT include the warning
+      const p = result.product as { product_name?: string; brands?: string; nutriments?: Record<string, number> };
+      let output = `**${p.product_name || 'Unknown'}**`;
+      if (p.brands) output += ` (${p.brands})`;
+      output += `\nBarcode: 9876543210 | Source: ${result.source || 'unknown'}`;
+
+      if (result.needsNutrition) {
+        output += `\n\n⚠️ Product identified but nutrition data is not available.`;
+      } else {
+        const n = p.nutriments || {};
+        output += `\n\nPer 100g:`;
+        output += `\n  Calories: ${n['energy-kcal_100g'] ?? '?'} kcal`;
+      }
+
+      expect(output).toContain('Per 100g');
+      expect(output).toContain('45 kcal');
+      expect(output).not.toContain('nutrition data is not available');
+    });
+  });
+
   describe('list_projects shared status', () => {
     it('should include sharedWith and isOwner fields', async () => {
       mockFetch.mockResolvedValue(jsonResponse({

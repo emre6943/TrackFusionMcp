@@ -1050,4 +1050,95 @@ describe('TrackfusionClient', () => {
       expect(result.totals.calories).toBe(1800);
     });
   });
+
+  // ---------- Community Foods & Templates ----------
+
+  describe('shareFoodToCommunity', () => {
+    it('should POST to share a food definition to community', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        food: { id: 'cf1', name: 'Chicken Breast', isCommunity: true, contributorName: 'Alice', usageCount: 0 },
+      }));
+
+      const result = await client.shareFoodToCommunity('f1');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/food-definitions/f1/share');
+      expect(options.method).toBe('POST');
+      expect(result.name).toBe('Chicken Breast');
+      expect(result.isCommunity).toBe(true);
+    });
+  });
+
+  describe('searchCommunityFoods', () => {
+    it('should GET community foods without filters', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        foods: [{ id: 'cf1', name: 'Rice', isCommunity: true }],
+        total: 1,
+      }));
+
+      const result = await client.searchCommunityFoods();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/community-foods',
+        expect.anything()
+      );
+      expect(result.foods).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+
+    it('should pass search and category as query params', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ foods: [], total: 0 }));
+
+      await client.searchCommunityFoods({ search: 'chicken', category: 'protein', limit: 10 });
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('search=chicken');
+      expect(url).toContain('category=protein');
+      expect(url).toContain('limit=10');
+    });
+  });
+
+  describe('shareMealTemplate', () => {
+    it('should POST to share a meal template to community', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        template: { id: 'ct1', name: 'Breakfast Combo', isCommunity: true, contributorName: 'Bob', usageCount: 0 },
+      }));
+
+      const result = await client.shareMealTemplate('mt1');
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.example.com/meal-templates/mt1/share');
+      expect(options.method).toBe('POST');
+      expect(result.name).toBe('Breakfast Combo');
+      expect(result.isCommunity).toBe(true);
+    });
+  });
+
+  describe('searchCommunityTemplates', () => {
+    it('should GET community templates without filters', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({
+        templates: [{ id: 'ct1', name: 'Post-Workout', isCommunity: true }],
+        total: 1,
+      }));
+
+      const result = await client.searchCommunityTemplates();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.example.com/community-meal-templates',
+        expect.anything()
+      );
+      expect(result.templates).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+
+    it('should pass search and limit as query params', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ templates: [], total: 0 }));
+
+      await client.searchCommunityTemplates({ search: 'breakfast', limit: 5 });
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('search=breakfast');
+      expect(url).toContain('limit=5');
+    });
+  });
 });

@@ -1420,7 +1420,7 @@ server.tool(
 
 server.tool(
   'lookup_barcode',
-  'Look up a product by barcode via Open Food Facts',
+  'Look up a product by barcode. Tries Open Food Facts first, then UPC ItemDB as fallback.',
   {
     barcode: z.string().describe('Product barcode (EAN/UPC, 8-14 digits)'),
   },
@@ -1430,18 +1430,23 @@ server.tool(
       if (!result.product) return text(`No product found for barcode ${barcode}.`);
 
       const p = result.product as any;
-      const n = p.nutriments || {};
       let output = `**${p.product_name || 'Unknown'}**`;
       if (p.brands) output += ` (${p.brands})`;
-      output += `\nBarcode: ${barcode}`;
-      if (p.nutriscore_grade) output += ` | Nutri-Score: ${p.nutriscore_grade.toUpperCase()}`;
-      output += `\n\nPer 100g:`;
-      output += `\n  Calories: ${n['energy-kcal_100g'] ?? '?'} kcal`;
-      output += `\n  Protein: ${n.proteins_100g ?? '?'}g`;
-      output += `\n  Carbs: ${n.carbohydrates_100g ?? '?'}g`;
-      output += `\n  Fat: ${n.fat_100g ?? '?'}g`;
-      if (n.fiber_100g !== undefined) output += `\n  Fiber: ${n.fiber_100g}g`;
-      if (n.sugars_100g !== undefined) output += `\n  Sugar: ${n.sugars_100g}g`;
+      output += `\nBarcode: ${barcode} | Source: ${result.source || 'unknown'}`;
+
+      if (result.needsNutrition) {
+        output += `\n\n⚠️ Product identified but nutrition data is not available. User needs to enter nutrition manually.`;
+      } else {
+        const n = p.nutriments || {};
+        if (p.nutriscore_grade) output += ` | Nutri-Score: ${p.nutriscore_grade.toUpperCase()}`;
+        output += `\n\nPer 100g:`;
+        output += `\n  Calories: ${n['energy-kcal_100g'] ?? '?'} kcal`;
+        output += `\n  Protein: ${n.proteins_100g ?? '?'}g`;
+        output += `\n  Carbs: ${n.carbohydrates_100g ?? '?'}g`;
+        output += `\n  Fat: ${n.fat_100g ?? '?'}g`;
+        if (n.fiber_100g !== undefined) output += `\n  Fiber: ${n.fiber_100g}g`;
+        if (n.sugars_100g !== undefined) output += `\n  Sugar: ${n.sugars_100g}g`;
+      }
 
       return text(output);
     } catch (err) {
@@ -1608,6 +1613,99 @@ server.tool(
     try {
       const result = await client.logMealTemplate(id, dateString, mealType);
       return text(`Logged ${result.count} items from template to ${mealType} on ${dateString}.`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+// ============================================
+// COMMUNITY FOODS & TEMPLATES
+// ============================================
+
+server.tool(
+  'search_community_foods',
+  'Search or browse community-contributed food definitions, sorted by popularity',
+  {
+    search: z.string().optional().describe('Search query to filter community foods'),
+    category: z.string().optional().describe('Filter by food category'),
+    barcode: z.string().optional().describe('Look up by exact barcode'),
+    limit: z.number().optional().describe('Max results (default: 50)'),
+  },
+  async ({ search, category, barcode, limit }) => {
+    try {
+      const result = await client.searchCommunityFoods({ search, category, barcode, limit });
+      if (result.foods.length === 0) return text('No community foods found.');
+
+      let output = `Found ${result.total} community foods:\n\n`;
+      for (const f of result.foods) {
+        output += `- **${f.name}**`;
+        if (f.brand) output += ` (${f.brand})`;
+        output += ` — ${f.calories} kcal/${f.servingSize}${f.servingUnit}`;
+        if (f.usageCount) output += ` | Used ${f.usageCount}x`;
+        if (f.contributorName) output += ` | by ${f.contributorName}`;
+        output += '\n';
+      }
+      return text(output);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'share_food_to_community',
+  'Share a user food definition to the community database so all users can access it',
+  {
+    foodId: z.string().describe('ID of the food definition to share'),
+  },
+  async ({ foodId }) => {
+    try {
+      const food = await client.shareFoodToCommunity(foodId);
+      return text(`Shared "${food.name}" to community! Community food ID: ${food.id}`);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'search_community_templates',
+  'Search or browse community-shared meal templates, sorted by popularity',
+  {
+    search: z.string().optional().describe('Search query to filter templates'),
+    limit: z.number().optional().describe('Max results (default: 50)'),
+  },
+  async ({ search, limit }) => {
+    try {
+      const result = await client.searchCommunityTemplates({ search, limit });
+      if (result.templates.length === 0) return text('No community meal templates found.');
+
+      let output = `Found ${result.total} community templates:\n\n`;
+      for (const t of result.templates) {
+        output += `- **${t.name}** — ${Math.round(t.totalCalories)} kcal`;
+        output += ` | ${t.items.length} items`;
+        if (t.usageCount) output += ` | Used ${t.usageCount}x`;
+        if (t.contributorName) output += ` | by ${t.contributorName}`;
+        output += `\n  P:${Math.round(t.totalProtein)}g C:${Math.round(t.totalCarbs)}g F:${Math.round(t.totalFat)}g\n`;
+      }
+      return text(output);
+    } catch (err) {
+      return errText(err);
+    }
+  }
+);
+
+server.tool(
+  'share_meal_template',
+  'Share a user meal template to the community database',
+  {
+    templateId: z.string().describe('ID of the meal template to share'),
+  },
+  async ({ templateId }) => {
+    try {
+      const template = await client.shareMealTemplate(templateId);
+      return text(`Shared "${template.name}" to community! Community template ID: ${template.id}`);
     } catch (err) {
       return errText(err);
     }

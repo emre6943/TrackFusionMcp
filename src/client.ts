@@ -744,6 +744,20 @@ export interface UpdateMealTemplateInput {
   items?: MealTemplateItem[];
 }
 
+export interface CommunityFood extends FoodDefinition {
+  isCommunity: boolean;
+  contributorId?: string;
+  contributorName?: string | null;
+  usageCount?: number;
+}
+
+export interface CommunityMealTemplate extends MealTemplate {
+  isCommunity: boolean;
+  contributorId?: string;
+  contributorName?: string | null;
+  usageCount?: number;
+}
+
 export interface DietProfile {
   id: string;
   userId: string;
@@ -1297,7 +1311,7 @@ export class TrackfusionClient {
     return this.request(`/food-search?${params.toString()}`);
   }
 
-  async lookupBarcode(barcode: string): Promise<{ product: unknown | null; source?: string }> {
+  async lookupBarcode(barcode: string): Promise<{ product: unknown | null; source?: string; needsNutrition?: boolean }> {
     return this.request(`/food-barcode/${encodeURIComponent(barcode)}`);
   }
 
@@ -1323,6 +1337,34 @@ export class TrackfusionClient {
       method: 'POST',
       body: JSON.stringify({ dateString, mealType }),
     });
+  }
+
+  // ============================================
+  // COMMUNITY FOODS & TEMPLATES
+  // ============================================
+
+  async shareFoodToCommunity(foodId: string): Promise<CommunityFood> {
+    const data = await this.request<{ food: CommunityFood }>(`/food-definitions/${encodeURIComponent(foodId)}/share`, {
+      method: 'POST',
+    });
+    return data.food;
+  }
+
+  async searchCommunityFoods(opts?: { search?: string; category?: string; barcode?: string; limit?: number }): Promise<{ foods: CommunityFood[]; total: number }> {
+    const qs = this.buildQs(opts || {});
+    return this.request(`/community-foods${qs}`);
+  }
+
+  async shareMealTemplate(templateId: string): Promise<CommunityMealTemplate> {
+    const data = await this.request<{ template: CommunityMealTemplate }>(`/meal-templates/${encodeURIComponent(templateId)}/share`, {
+      method: 'POST',
+    });
+    return data.template;
+  }
+
+  async searchCommunityTemplates(opts?: { search?: string; limit?: number }): Promise<{ templates: CommunityMealTemplate[]; total: number }> {
+    const qs = this.buildQs(opts || {});
+    return this.request(`/community-meal-templates${qs}`);
   }
 
   // ============================================
