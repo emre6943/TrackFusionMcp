@@ -816,6 +816,7 @@ server.tool(
       })).describe('Sets performed'),
       order: z.number().optional().describe('Exercise order'),
       notes: z.string().optional().describe('Exercise-specific notes'),
+      supersetGroupId: z.string().optional().describe('Group ID for superset linking'),
     })).describe('Exercises performed'),
     durationMinutes: z.number().optional().describe('Total duration in minutes'),
     notes: z.string().optional().describe('Session notes'),

@@ -414,6 +414,7 @@ export interface WorkoutExercise {
   muscleGroups: string[];
   sets: ExerciseSet[];
   order: number;
+  supersetGroupId?: string;
 }
 
 export interface ExerciseSet {
@@ -434,6 +435,7 @@ export interface WorkoutTemplate {
     targetSets: number;
     targetReps?: number;
     targetWeight?: number;
+    supersetGroupId?: string;
   }>;
   usageCount: number;
   lastUsedAt?: string;
